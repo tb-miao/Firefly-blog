@@ -1,0 +1,27 @@
+---
+const hiddenTitle = "w(ﾟДﾟ)w 不要走！再看看嘛！";
+const returnTitle = "♪(^∇^*)欢迎回来！";
+---
+
+<script is:inline define:vars={{ hiddenTitle, returnTitle }}>
+(function () {
+    const originTitle = document.title;
+    let titleTimer = null;
+    
+
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            document.title = hiddenTitle;
+            clearTimeout(titleTimer);
+        } else {
+            document.title = returnTitle;
+            titleTimer = setTimeout(function () {
+                document.title = originTitle;
+            }, 2000);
+        }
+    }
+
+    // Use visibilitychange event
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+})();
+</script>

@@ -1,0 +1,100 @@
+---
+---
+
+<div id="scroll-progress-bar" class="scroll-progress-bar"></div>
+
+<script is:inline>
+(function () {
+    let progressBar = null;
+    let cachedScrollHeight = 0;
+    let cachedClientHeight = 0;
+
+    const throttle = function(func, delay) {
+        let timeoutId;
+        let lastExecTime = 0;
+
+        return function() {
+            const currentTime = Date.now();
+
+            if (currentTime - lastExecTime > delay) {
+                func.apply(this, arguments);
+                lastExecTime = currentTime;
+            } else {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(function() {
+                    func.apply(this, arguments);
+                    lastExecTime = Date.now();
+                }, delay - (currentTime - lastExecTime));
+            }
+        };
+    };
+
+    function handleScroll() {
+        requestAnimationFrame(function() {
+            if (!progressBar) {
+                progressBar = document.getElementById('scroll-progress-bar');
+                if (!progressBar) return;
+            }
+
+            if (cachedScrollHeight === 0 || cachedClientHeight === 0) {
+                cachedScrollHeight = document.documentElement.scrollHeight;
+                cachedClientHeight = document.documentElement.clientHeight;
+            }
+
+            const totalHeight = cachedScrollHeight - cachedClientHeight;
+            const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+            const progress = totalHeight > 0 ? (scrollTop / totalHeight) * 100 : 0;
+
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+            }
+        });
+    }
+
+    function handleResize() {
+        cachedScrollHeight = 0;
+        cachedClientHeight = 0;
+    }
+
+    const throttledHandleScroll = throttle(handleScroll, 50);
+
+    function init() {
+        // Initial calculation
+        handleScroll();
+
+        // Add scroll listener
+        window.addEventListener('scroll', throttledHandleScroll, { passive: true });
+
+        // Add resize listener
+        window.addEventListener('resize', handleResize, { passive: true });
+    }
+
+    // Ensure DOM is fully loaded before initialization
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+
+<style>
+    .scroll-progress-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 2px;
+        width: 0;
+        background: linear-gradient(
+            107deg,
+            rgb(255, 182, 133) -30.6%,
+            rgb(255, 111, 29) -1.11%,
+            rgb(252, 181, 232) 39.14%,
+            rgb(135, 148, 255) 73.35%,
+            rgb(60, 112, 255) 97.07%,
+            rgb(60, 112, 255) 118.97%
+        );
+        z-index: 9999;
+        pointer-events: none;
+    }
+</style>

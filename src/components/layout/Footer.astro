@@ -1,0 +1,102 @@
+---
+import fs from "node:fs";
+import path from "path";
+import { footerConfig, profileConfig } from "@/config";
+import { url } from "@/utils/url-utils";
+
+const currentYear = new Date().getFullYear();
+
+// 读取 package.json 获取版本号
+let themeVersion = "unknown";
+try {
+	const packageJsonPath = path.join(process.cwd(), "package.json");
+	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+	themeVersion = packageJson.version;
+} catch (error) {
+	console.warn("读取 package.json 版本号失败:", error.message);
+}
+
+// 读取FooterConfig.html文件内容
+let customFooterHtml = "";
+if (footerConfig.enable) {
+	try {
+		const footerConfigPath = path.join(
+			process.cwd(),
+			"src",
+			"config",
+			"FooterConfig.html",
+		);
+		customFooterHtml = fs.readFileSync(footerConfigPath, "utf-8");
+		// 移除HTML注释
+		customFooterHtml = customFooterHtml.replace(/<!--[\s\S]*?-->/g, "").trim();
+		// 替换版本号占位符
+		customFooterHtml = customFooterHtml.replace(
+			/__THEME_VERSION__/g,
+			themeVersion,
+		);
+	} catch (error) {
+		console.warn("FooterConfig.html文件读取失败:", error.message);
+	}
+}
+---
+
+
+<div
+  class="transition border-t border-black/10 dark:border-white/15 my-10 border-dashed mx-32"
+>
+</div>
+
+<div
+  class="transition border-dashed border-[oklch(85%_0.01_var(--hue))] dark:border-white/15 rounded-2xl mb-12 flex flex-col items-center justify-center px-6"
+>
+  <div class="transition text-50 text-sm text-center wrap">
+    <div class="mb-2">
+      {customFooterHtml && <div set:html={customFooterHtml} />}
+    </div>
+    <div class="m-0.5 flex gap-2 justify-center flex-wrap">
+      &copy; <span id="copyright-year">2024-{currentYear}</span>
+      {profileConfig.name}. All Rights Reserved.
+      <span aria-hidden="true">/</span>
+      <a
+        class="transition link text-(--primary) font-medium"
+        target="_blank"
+        href={url("rss.xml")}>RSS</a
+      >
+      <span aria-hidden="true">/</span>
+      <a
+        class="transition link text-(--primary) font-medium"
+        target="_blank"
+        href={url("sitemap-index.xml")}>Sitemap</a
+      > /
+      <a
+        class="transition link text-(--primary) font-medium"
+        href={url("/privacy/")}>隐私政策和用户协议</a
+      >
+    </div>
+    <div class="m-0.5 flex gap-2 justify-center flex-wrap">
+      <span>Powered by</span>
+      <a
+        class="transition link text-(--primary) font-medium"
+        target="_blank"
+        href="https://astro.build">Astro</a
+      >
+      <span aria-hidden="true">&</span>
+      <a
+        class="transition link text-(--primary) font-medium"
+        target="_blank"
+        href="https://github.com/CuteLeaf/Firefly">Firefly v6.13.5 Pro Max +++</a
+      >; 
+    </div>
+		| <a class="transition link text-[var(--primary)] font-medium" href="https://icp.redcha.cn/beian/ICP-20250520.html" title="茶ICP备20250520号" target="_blank">茶ICP备20250520号</a> | 
+    <a class="transition link text-[var(--primary)] font-medium" href="https://icp.gov.moe/?keyword=20250028" title="萌ICP备20250028号" target="_blank">萌ICP备20250028号</a> | 
+    <a class="transition link text-[var(--primary)] font-medium" href="https://icp.felicity.land/id.php?keyword=20250001" target="_blank">幸ICP备20250001号</a> | 
+		<a class="transition link text-[var(--primary)] font-medium" href="https://icp.wudu.ltd/id.php?keyword=20260520" target="_blank">雾备20260520号</a> | 
+    <a class="transition link text-[var(--primary)] font-medium" href="https://icp.hentioe.dev/sites/20262570" target="_blank">喵ICP备20262570号</a> | 
+    <a class="transition link text-[var(--primary)] font-medium" href="https://icp.sakura.ink/beian?code=2605230221" target="_blank">樱ICP备2605230221号</a> |
+    <!-- 
+      注意：请勿随意修改或删除 "Powered by Astro & Firefly" 部分，这是对开源项目的尊重和支持。
+      如果您需要在底部增加内容，请在src/config/footerConfig.ts中修改enable属性为true，然后编辑src/config/FooterConfig.html文件。
+      您可以随意在src/config/FooterConfig.html中随意添加自定义内容，不需要修改Footer.astro文件。
+    -->
+	</div>
+</div>

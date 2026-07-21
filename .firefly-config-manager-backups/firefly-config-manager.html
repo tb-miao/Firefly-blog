@@ -1,0 +1,2862 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Firefly 本地管理器</title>
+	<style>
+		:root {
+			--bg: #f4f6f5;
+			--panel: #ffffff;
+			--soft: #edf3f0;
+			--soft-2: #f8faf9;
+			--text: #17211e;
+			--muted: #63716c;
+			--line: #d6dfdb;
+			--brand: #237765;
+			--brand-dark: #185b4d;
+			--accent: #7357a6;
+			--danger: #ad3434;
+			--warn: #9a620e;
+			--ok: #1f7352;
+			--focus: rgba(35, 119, 101, 0.2);
+			font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			min-height: 100vh;
+		}
+
+		button,
+		input,
+		select,
+		textarea {
+			font: inherit;
+		}
+
+		button {
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: var(--panel);
+			color: var(--text);
+			padding: 9px 13px;
+			cursor: pointer;
+		}
+
+		button:hover {
+			border-color: var(--brand);
+		}
+
+		button:disabled {
+			opacity: .55;
+			cursor: not-allowed;
+		}
+
+		.primary {
+			background: var(--brand);
+			border-color: var(--brand);
+			color: #fff;
+		}
+
+		.primary:hover {
+			background: var(--brand-dark);
+			border-color: var(--brand-dark);
+		}
+
+		.danger {
+			border-color: rgba(173, 52, 52, .35);
+			color: var(--danger);
+		}
+
+		.app {
+			display: grid;
+			grid-template-columns: 310px minmax(0, 1fr);
+			min-height: 100vh;
+		}
+
+		body.sidebar-collapsed .app {
+			grid-template-columns: 58px minmax(0, 1fr);
+		}
+
+		body.sidebar-collapsed .sidebar {
+			padding: 14px 9px;
+		}
+
+		body.sidebar-collapsed .sidebar> :not(.brand-row) {
+			display: none;
+		}
+
+		body.sidebar-collapsed .brand-row {
+			flex-direction: column;
+			gap: 10px;
+		}
+
+		body.sidebar-collapsed .brand-row h1,
+		body.sidebar-collapsed .brand-row .subtle {
+			display: none;
+		}
+
+		.sidebar {
+			background: var(--panel);
+			border-right: 1px solid var(--line);
+			padding: 20px 17px;
+			position: sticky;
+			top: 0;
+			height: 100vh;
+			overflow: auto;
+		}
+
+		.brand-row {
+			display: flex;
+			gap: 11px;
+			align-items: center;
+			margin-bottom: 17px;
+		}
+
+		.sidebar-toggle {
+			margin-left: auto;
+			width: 34px;
+			height: 34px;
+			padding: 0;
+			display: grid;
+			place-items: center;
+			font-weight: 800;
+		}
+
+		body.sidebar-collapsed .sidebar-toggle {
+			margin-left: 0;
+		}
+
+		.brand-mark {
+			width: 38px;
+			height: 38px;
+			border-radius: 8px;
+			background: var(--brand);
+			color: #fff;
+			display: grid;
+			place-items: center;
+			font-weight: 800;
+			letter-spacing: 0;
+		}
+
+		h1 {
+			font-size: 19px;
+			line-height: 1.2;
+			margin: 0;
+		}
+
+		.subtle {
+			color: var(--muted);
+			font-size: 13px;
+			line-height: 1.55;
+		}
+
+		.repo-box {
+			margin: 15px 0;
+			padding: 12px;
+			border: 1px solid var(--line);
+			background: var(--soft);
+			border-radius: 8px;
+		}
+
+		.repo-name {
+			font-weight: 700;
+			word-break: break-all;
+			margin-bottom: 4px;
+		}
+
+		.nav {
+			display: grid;
+			gap: 6px;
+			margin-top: 16px;
+		}
+
+		.nav button {
+			text-align: left;
+			width: 100%;
+			background: transparent;
+			border-color: transparent;
+			padding: 10px 12px;
+		}
+
+		.nav button.active {
+			background: var(--soft);
+			border-color: var(--line);
+			color: var(--brand-dark);
+			font-weight: 700;
+		}
+
+		.nav-sub {
+			display: grid;
+			gap: 4px;
+			padding-left: 16px;
+			margin-top: 4px;
+		}
+
+		.nav-sub button {
+			font-size: 13px;
+			padding: 7px 10px;
+		}
+
+		.nav-sub button.active {
+			background: var(--focus);
+			border-color: var(--brand);
+			color: var(--brand-dark);
+		}
+
+		main {
+			min-width: 0;
+			padding: 22px;
+		}
+
+		.toolbar {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 12px;
+			margin-bottom: 16px;
+			flex-wrap: wrap;
+		}
+
+		.toolbar-actions {
+			display: flex;
+			gap: 9px;
+			flex-wrap: wrap;
+		}
+
+		.status {
+			color: var(--muted);
+			font-size: 14px;
+			min-height: 22px;
+		}
+
+		.status.ok {
+			color: var(--ok);
+		}
+
+		.status.warn {
+			color: var(--warn);
+		}
+
+		.status.error {
+			color: var(--danger);
+		}
+
+		.panel {
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			margin-bottom: 15px;
+			overflow: hidden;
+		}
+
+		.panel-header {
+			padding: 15px 17px;
+			border-bottom: 1px solid var(--line);
+			display: flex;
+			justify-content: space-between;
+			gap: 12px;
+			align-items: center;
+		}
+
+		.panel-title {
+			font-size: 18px;
+			margin: 0;
+			line-height: 1.35;
+		}
+
+		.panel-body {
+			padding: 17px;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(260px, 1fr));
+			gap: 15px;
+		}
+
+		.grid.three {
+			grid-template-columns: repeat(3, minmax(220px, 1fr));
+		}
+
+		.field {
+			display: grid;
+			gap: 7px;
+			align-content: start;
+			min-width: 0;
+		}
+
+		label {
+			font-size: 14px;
+			font-weight: 700;
+		}
+
+		.hint {
+			font-size: 12px;
+			color: var(--muted);
+			line-height: 1.45;
+		}
+
+		.backup-changes {
+			margin: 8px 0 12px;
+			padding-left: 18px;
+		}
+
+		input[type="text"],
+		input[type="number"],
+		input[type="url"],
+		input[type="password"],
+		input[type="datetime-local"],
+		input[type="date"],
+		select,
+		textarea {
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			padding: 9px 10px;
+			background: #fff;
+			color: var(--text);
+			width: 100%;
+			min-width: 0;
+		}
+
+		input:focus,
+		select:focus,
+		textarea:focus {
+			outline: 3px solid var(--focus);
+			border-color: var(--brand);
+		}
+
+		textarea {
+			resize: vertical;
+			min-height: 96px;
+			line-height: 1.5;
+		}
+
+		.code-area {
+			font-family: Consolas, "Cascadia Mono", monospace;
+			font-size: 13px;
+			min-height: 55vh;
+			tab-size: 2;
+			white-space: pre;
+			overflow-wrap: normal;
+			overflow-x: auto;
+		}
+
+		.asset-strip {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+			gap: 8px;
+			margin-top: 8px;
+		}
+
+		.asset-card {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: var(--soft-2);
+			overflow: hidden;
+		}
+
+		.asset-card img {
+			width: 100%;
+			height: 96px;
+			object-fit: contain;
+			display: block;
+			background: var(--soft);
+		}
+
+		.asset-card .hint {
+			padding: 7px;
+			word-break: break-all;
+		}
+
+		.check {
+			display: flex;
+			align-items: center;
+			gap: 9px;
+			min-height: 39px;
+		}
+
+		.check input {
+			width: 18px;
+			height: 18px;
+			accent-color: var(--brand);
+		}
+
+		.range-row {
+			display: grid;
+			grid-template-columns: 1fr 78px;
+			gap: 8px;
+			align-items: center;
+		}
+
+		input[type="range"] {
+			width: 100%;
+			accent-color: var(--brand);
+		}
+
+		.tabs,
+		.chips {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+		}
+
+		.tabs {
+			margin-bottom: 14px;
+		}
+
+		.tabs button.active,
+		.chips button.active {
+			background: var(--brand);
+			border-color: var(--brand);
+			color: #fff;
+		}
+
+		.notice {
+			padding: 12px 14px;
+			background: #fff8e9;
+			border: 1px solid #ecd5a3;
+			color: #64420c;
+			border-radius: 8px;
+			line-height: 1.55;
+			margin-bottom: 14px;
+		}
+
+		.empty {
+			padding: 28px;
+			text-align: center;
+			color: var(--muted);
+		}
+
+		.split {
+			display: grid;
+			grid-template-columns: 340px minmax(0, 1fr);
+			gap: 15px;
+		}
+
+		.list-panel {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+			background: var(--panel);
+		}
+
+		.list-head {
+			padding: 10px;
+			background: var(--soft);
+			border-bottom: 1px solid var(--line);
+			display: grid;
+			gap: 8px;
+		}
+
+		.list {
+			max-height: 68vh;
+			overflow: auto;
+		}
+
+		.list-item {
+			width: 100%;
+			border: 0;
+			border-bottom: 1px solid var(--line);
+			border-radius: 0;
+			background: #fff;
+			text-align: left;
+			padding: 11px;
+		}
+
+		.list-item.active {
+			background: var(--soft);
+			color: var(--brand-dark);
+		}
+
+		.item-title {
+			font-weight: 700;
+			line-height: 1.35;
+			margin-bottom: 4px;
+			word-break: break-word;
+		}
+
+		.item-meta {
+			color: var(--muted);
+			font-size: 12px;
+			line-height: 1.45;
+			word-break: break-word;
+		}
+
+		.badges {
+			display: flex;
+			gap: 5px;
+			flex-wrap: wrap;
+			margin-top: 6px;
+		}
+
+		.badge {
+			font-size: 11px;
+			color: var(--brand-dark);
+			background: #e4f2ed;
+			border: 1px solid #c5dfd7;
+			border-radius: 999px;
+			padding: 2px 7px;
+		}
+
+		.badge.warn {
+			color: var(--warn);
+			background: #fff4de;
+			border-color: #e8cf97;
+		}
+
+		.row-actions {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+			margin-top: 12px;
+		}
+
+		.array-box {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.array-head {
+			background: var(--soft);
+			padding: 9px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 8px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		.array-items {
+			display: grid;
+			gap: 10px;
+			padding: 10px;
+		}
+
+		.array-card {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 12px;
+			background: var(--soft-2);
+		}
+
+		.array-card-head {
+			display: flex;
+			justify-content: space-between;
+			gap: 8px;
+			margin-bottom: 10px;
+			align-items: center;
+		}
+
+		.preview-img {
+			width: 112px;
+			height: 82px;
+			object-fit: contain;
+			border-radius: 6px;
+			border: 1px solid var(--line);
+			background: var(--soft);
+			display: block;
+			margin-top: 6px;
+		}
+
+		.color-preview {
+			height: 38px;
+			border-radius: 6px;
+			border: 1px solid var(--line);
+		}
+
+
+		@media (max-width: 1100px) {
+			.app {
+				grid-template-columns: 1fr;
+			}
+
+			.sidebar {
+				position: relative;
+				height: auto;
+				border-right: 0;
+				border-bottom: 1px solid var(--line);
+			}
+
+			.grid,
+			.grid.three,
+			.split {
+				grid-template-columns: 1fr;
+			}
+
+			main {
+				padding: 16px;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<div class="app">
+		<aside class="sidebar">
+			<div class="brand-row">
+				<div class="brand-mark">F</div>
+				<div>
+					<h1>Firefly 本地管理器</h1>
+					<div class="subtle">配置、文章、备份恢复</div>
+				</div>
+				<button id="sidebarToggle" class="sidebar-toggle" type="button" title="折叠侧边栏">‹</button>
+			</div>
+			<button id="pickRepo" class="primary">选择网站仓库</button>
+			<div class="repo-box">
+				<div id="repoName" class="repo-name">尚未选择仓库</div>
+				<div id="repoMeta" class="subtle">请选择包含 package.json、src/config、src/content/blog 的 Firefly 项目。</div>
+			</div>
+			<div class="subtle">所有操作都在本机完成。保存前会创建备份，会话可在“备份恢复”里回滚。</div>
+			<nav id="nav" class="nav"></nav>
+		</aside>
+		<main>
+			<div class="toolbar">
+				<div id="status" class="status">等待选择仓库。</div>
+				<div class="toolbar-actions">
+					<input id="backupName" type="text" placeholder="备份名称（可选）" style="width:180px">
+					<button id="reloadBtn" disabled>重新读取</button>
+					<button id="saveBtn" class="primary" disabled>保存全部修改</button>
+				</div>
+			</div>
+			<section id="content">
+				<div class="panel">
+					<div class="empty">点击左侧“选择网站仓库”，选择 `E:\Blog\Firefly` 这样的项目目录。</div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<script>
+		const CONFIG_DIR = ["src", "config"];
+		const POSTS_DIR = ["src", "content", "posts"];
+		const BACKUP_DIR = [".firefly-config-manager-backups"];
+		const CONFIG_FILES = [
+			"siteConfig.ts", "profileConfig.ts", "sidebarConfig.ts", "announcementConfig.ts",
+			"commentConfig.ts", "musicConfig.ts", "footerConfig.ts", "friendsConfig.ts",
+			"galleryConfig.ts", "coverImageConfig.ts", "backgroundWallpaper.ts", "fontConfig.ts",
+			"licenseConfig.ts", "sponsorConfig.ts", "adConfig.ts", "pioConfig.ts", "navBarConfig.ts",
+			"effectsConfig.ts", "expressiveCodeConfig.ts", "plantumlConfig.ts",
+			"FooterConfig.html", "index.ts"
+		];
+
+		const state = {
+			root: null,
+			configDir: null,
+			postsDir: null,
+			backupDir: null,
+			assetUrls: new Map(),
+			files: new Map(),
+			posts: [],
+			dirtyFiles: new Set(),
+			dirtyPosts: new Set(),
+			changeNotes: new Map(),
+			nextBackupName: "",
+			activeGroup: "dashboard",
+			activeSubgroup: null,
+			activeSourceFile: "siteConfig.ts",
+			activePostPath: "",
+			postQuery: "",
+			backupSessions: [],
+		};
+
+		const DB_NAME = "firefly-config-manager";
+		const DB_STORE = "handles";
+		const REPO_HANDLE_KEY = "repo-handle";
+
+		async function openDB() {
+			return new Promise((resolve, reject) => {
+				const req = indexedDB.open(DB_NAME, 1);
+				req.onerror = () => reject(req.error);
+				req.onsuccess = () => resolve(req.result);
+				req.onupgradeneeded = (e) => {
+					e.target.result.createObjectStore(DB_STORE);
+				};
+			});
+		}
+
+		async function saveHandle(key, handle) {
+			const db = await openDB();
+			return new Promise((resolve, reject) => {
+				const tx = db.transaction(DB_STORE, "readwrite");
+				tx.objectStore(DB_STORE).put(handle, key);
+				tx.onerror = () => reject(tx.error);
+				tx.oncomplete = () => resolve();
+			});
+		}
+
+		async function getHandle(key) {
+			const db = await openDB();
+			return new Promise((resolve, reject) => {
+				const tx = db.transaction(DB_STORE, "readonly");
+				const req = tx.objectStore(DB_STORE).get(key);
+				req.onerror = () => reject(req.error);
+				req.onsuccess = () => resolve(req.result);
+			});
+		}
+
+		async function restoreLastRepo() {
+			try {
+				const handle = await getHandle(REPO_HANDLE_KEY);
+				if (!handle) return false;
+				const permission = await handle.queryPermission({ mode: "readwrite" });
+				if (permission.state === "granted") {
+					await initWithHandle(handle);
+					return true;
+				}
+				const reqPermission = await handle.requestPermission({ mode: "readwrite" });
+				if (reqPermission === "granted") {
+					await initWithHandle(handle);
+					return true;
+				}
+				return false;
+			} catch {
+				return false;
+			}
+		}
+
+		async function initWithHandle(root) {
+			const pkg = await root.getFileHandle("package.json").catch(() => null);
+			const configDir = await getDir(root, CONFIG_DIR).catch(() => null);
+			const postsDir = await getDir(root, POSTS_DIR).catch(() => null);
+			if (!pkg || !configDir) return false;
+			state.root = root;
+			state.configDir = configDir;
+			state.postsDir = postsDir;
+			state.backupDir = await getDir(root, BACKUP_DIR, true);
+			els.repoName.textContent = root.name;
+			els.repoMeta.textContent = postsDir ? "已授权配置和文章读写。" : `已授权配置读写，但未找到 ${POSTS_DIR.join("/")}。`;
+			await reloadAll();
+			els.reloadBtn.disabled = false;
+			els.saveBtn.disabled = false;
+			renderNav();
+			render();
+			return true;
+		}
+
+		const els = {
+			pickRepo: document.getElementById("pickRepo"),
+			sidebarToggle: document.getElementById("sidebarToggle"),
+			backupName: document.getElementById("backupName"),
+			reloadBtn: document.getElementById("reloadBtn"),
+			saveBtn: document.getElementById("saveBtn"),
+			repoName: document.getElementById("repoName"),
+			repoMeta: document.getElementById("repoMeta"),
+			status: document.getElementById("status"),
+			nav: document.getElementById("nav"),
+			content: document.getElementById("content"),
+		};
+
+		const navGroups = [
+			["dashboard", "总览"],
+			["site", "站点与 SEO"],
+			["theme", "主题与布局"],
+			["home", "首页与壁纸"],
+			["nav", "导航与页面"],
+			["profile", "个人资料"],
+			["content", "内容组件"],
+			["comment", "评论系统"],
+			["music", "音乐播放器"],
+			["visual", "外观增强"],
+			["analytics", "统计分析"],
+			["posts", "文章管理"],
+			["backups", "备份恢复"],
+			["source", "源码编辑"],
+		];
+
+		const fieldGroups = {
+			site: {
+				title: "站点与 SEO",
+				desc: "网站基础信息、语言、favicon、SEO 元数据和站点时间。",
+				fields: [
+					f("网站标题", "siteConfig.ts", "siteConfig", "title"),
+					f("副标题", "siteConfig.ts", "siteConfig", "subtitle"),
+					f("网站 URL", "siteConfig.ts", "siteConfig", "site_url", "url"),
+					f("站点语言", "siteConfig.ts", "SITE_LANG", "", "select", { options: ["zh_CN", "zh_TW", "en", "ja", "ru"], hint: "新版 Firefly 在 siteConfig.ts 顶部用 SITE_LANG 常量定义语言；这里会直接修改该常量。" }),
+					f("站点描述", "siteConfig.ts", "siteConfig", "description", "textarea"),
+					f("关键词", "siteConfig.ts", "siteConfig", "keywords", "lines", { hint: "每行一个关键词" }),
+					f("建站日期", "siteConfig.ts", "siteConfig", "siteStartDate", "date"),
+					f("时区", "siteConfig.ts", "siteConfig", "timezone", "select", { options: ["Asia/Shanghai", "UTC", "America/New_York", "Europe/London", "Asia/Tokyo"], editable: true }),
+					f("Favicon 列表", "siteConfig.ts", "siteConfig", "favicon", "arrayObject", {
+						schema: [
+							["src", "图标路径", "text"],
+							["theme", "主题", "select", ["", "light", "dark"]],
+							["sizes", "尺寸", "text"],
+						],
+						empty: { src: "/favicon/favicon.ico" },
+					}),
+					f("OpenGraph 图片生成", "siteConfig.ts", "siteConfig", "generateOgImages", "boolean"),
+					f("显示最后修改时间", "siteConfig.ts", "siteConfig", "showLastModified", "boolean"),
+					f("文章过期提醒天数", "siteConfig.ts", "siteConfig", "outdatedThreshold", "number"),
+					f("分享海报", "siteConfig.ts", "siteConfig", "sharePoster", "boolean"),
+					f("Callout 样式", "siteConfig.ts", "siteConfig", "rehypeCallouts.theme", "select", { options: ["github", "obsidian", "vitepress"] }),
+				],
+			},
+			theme: {
+				title: "主题与布局",
+				desc: "主题色、暗色模式、页面宽度、卡片、文章列表和图片优化。",
+				fields: [
+					f("主题色 Hue", "siteConfig.ts", "siteConfig", "themeColor.hue", "range", { min: 0, max: 360, hint: "会写入 siteConfig.themeColor.hue。网站前端会优先使用访问者浏览器 localStorage.hue；如果你曾在网站显示设置里调过主题色，需要在网站显示设置中点重置，或清除该站点 localStorage 的 hue 后才能看到配置默认色。" }),
+					f("主题色预览", "siteConfig.ts", "siteConfig", "themeColor.hue", "colorPreview"),
+					f("固定主题色", "siteConfig.ts", "siteConfig", "themeColor.fixed", "boolean"),
+					f("默认颜色模式", "siteConfig.ts", "siteConfig", "themeColor.defaultMode", "select", { options: ["light", "dark", "system"] }),
+					f("页面宽度 rem", "siteConfig.ts", "siteConfig", "pageWidth", "number"),
+					f("卡片边框", "siteConfig.ts", "siteConfig", "card.border", "boolean"),
+					f("卡片跟随主题色", "siteConfig.ts", "siteConfig", "card.followTheme", "boolean"),
+					f("分类栏", "siteConfig.ts", "siteConfig", "categoryBar", "boolean"),
+					f("桌面文章布局", "siteConfig.ts", "siteConfig", "postListLayout.defaultMode", "segmented", { options: ["list", "grid"] }),
+					f("移动端文章布局", "siteConfig.ts", "siteConfig", "postListLayout.mobileDefaultMode", "segmented", { options: ["list", "grid"] }),
+					f("文章列表显示标签", "siteConfig.ts", "siteConfig", "postListLayout.showTags", "boolean"),
+					f("摘要行数", "siteConfig.ts", "siteConfig", "postListLayout.descriptionLines", "number"),
+					f("允许切换布局", "siteConfig.ts", "siteConfig", "postListLayout.allowSwitch", "boolean"),
+					f("网格瀑布流", "siteConfig.ts", "siteConfig", "postListLayout.grid.masonry", "boolean"),
+					f("网格列宽 px", "siteConfig.ts", "siteConfig", "postListLayout.grid.columnWidth", "number"),
+					f("每页文章数", "siteConfig.ts", "siteConfig", "pagination.postsPerPage", "number"),
+					f("图片输出格式", "siteConfig.ts", "siteConfig", "imageOptimization.formats", "segmented", { options: ["avif", "webp", "both"] }),
+					f("图片质量", "siteConfig.ts", "siteConfig", "imageOptimization.quality", "range", { min: 1, max: 100 }),
+					f("No-referrer 域名", "siteConfig.ts", "siteConfig", "imageOptimization.noReferrerDomains", "lines"),
+				],
+			},
+			home: {
+				title: "首页与壁纸",
+				desc: "Banner、Overlay、首页文字、打字机、轮播、水波和壁纸来源。",
+				fields: [
+					f("壁纸模式", "backgroundWallpaper.ts", "backgroundWallpaper", "mode", "segmented", { options: ["banner", "fullscreen", "overlay", "none"] }),
+					f("允许用户切换壁纸", "backgroundWallpaper.ts", "backgroundWallpaper", "switchable", "boolean"),
+					f("桌面壁纸", "backgroundWallpaper.ts", "backgroundWallpaper", "src.desktop", "lines", { hint: "每行一个路径或 URL；只有一个时会写入字符串，多个时写入数组" }),
+					f("桌面壁纸预览", "backgroundWallpaper.ts", "backgroundWallpaper", "src.desktop", "assetGallery"),
+					f("移动端壁纸", "backgroundWallpaper.ts", "backgroundWallpaper", "src.mobile", "lines"),
+					f("移动端壁纸预览", "backgroundWallpaper.ts", "backgroundWallpaper", "src.mobile", "assetGallery"),
+					f("壁纸 src 完整配置", "backgroundWallpaper.ts", "backgroundWallpaper", "src", "json", { hint: "新版支持字符串、数组，或 { desktop, mobile } 对象；当上方桌面/移动字段显示为未找到时，请在这里编辑。" }),
+					f("Banner 图片位置", "backgroundWallpaper.ts", "backgroundWallpaper", "banner.position", "select", { options: ["top", "center", "bottom", "left top", "right bottom", "0% 20%"], editable: true }),
+					f("壁纸文字遮罩暗度", "backgroundWallpaper.ts", "backgroundWallpaper", "common.dimOpacity", "range", { min: 0, max: 1, step: 0.01 }),
+					f("首页文字启用", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.enable", "boolean"),
+					f("首页文字可切换", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.switchable", "boolean"),
+					f("首页标题", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.title"),
+					f("首页标题字号", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.titleSize"),
+					f("首页副标题", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.subtitle", "lines"),
+					f("首页副标题字号", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.subtitleSize"),
+					f("打字机启用", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.typewriter.enable", "boolean"),
+					f("打字速度", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.typewriter.speed", "number"),
+					f("删除速度", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.typewriter.deleteSpeed", "number"),
+					f("停顿时间 ms", "backgroundWallpaper.ts", "backgroundWallpaper", "common.homeText.typewriter.pauseTime", "number"),
+					f("导航透明", "backgroundWallpaper.ts", "backgroundWallpaper", "common.navbar.transparentMode", "segmented", { options: ["semi", "full", "semifull"] }),
+					f("导航模糊", "backgroundWallpaper.ts", "backgroundWallpaper", "common.navbar.enableBlur", "boolean"),
+					f("导航模糊强度", "backgroundWallpaper.ts", "backgroundWallpaper", "common.navbar.blur", "number"),
+					f("Banner 轮播", "backgroundWallpaper.ts", "backgroundWallpaper", "banner.carousel.enable", "boolean"),
+					f("轮播间隔 ms", "backgroundWallpaper.ts", "backgroundWallpaper", "banner.carousel.interval", "number"),
+					f("轮播可切换", "backgroundWallpaper.ts", "backgroundWallpaper", "banner.carousel.switchable", "boolean"),
+					f("水波桌面显示", "backgroundWallpaper.ts", "backgroundWallpaper", "common.waves.enable.desktop", "boolean"),
+					f("水波移动端显示", "backgroundWallpaper.ts", "backgroundWallpaper", "common.waves.enable.mobile", "boolean"),
+					f("水波可切换", "backgroundWallpaper.ts", "backgroundWallpaper", "common.waves.switchable", "boolean"),
+					f("水波显示完整配置", "backgroundWallpaper.ts", "backgroundWallpaper", "common.waves.enable", "json", { hint: "新版可以是 boolean，也可以是 { desktop, mobile }。" }),
+					f("渐变桌面显示", "backgroundWallpaper.ts", "backgroundWallpaper", "common.gradient.enable.desktop", "boolean"),
+					f("渐变移动端显示", "backgroundWallpaper.ts", "backgroundWallpaper", "common.gradient.enable.mobile", "boolean"),
+					f("渐变高度", "backgroundWallpaper.ts", "backgroundWallpaper", "common.gradient.height"),
+					f("渐变可切换", "backgroundWallpaper.ts", "backgroundWallpaper", "common.gradient.switchable", "boolean"),
+					f("渐变显示完整配置", "backgroundWallpaper.ts", "backgroundWallpaper", "common.gradient.enable", "json"),
+					f("Overlay 可切换项", "backgroundWallpaper.ts", "backgroundWallpaper", "overlay.switchable", "json", { hint: "支持 boolean，或 { opacity, blur, cardOpacity }。" }),
+					f("Overlay 透明度", "backgroundWallpaper.ts", "backgroundWallpaper", "overlay.opacity", "range", { min: 0, max: 1, step: 0.01 }),
+					f("Overlay 模糊", "backgroundWallpaper.ts", "backgroundWallpaper", "overlay.blur", "number"),
+					f("卡片透明度", "backgroundWallpaper.ts", "backgroundWallpaper", "overlay.cardOpacity", "range", { min: 0, max: 1, step: 0.01 }),
+					f("Overlay z-index", "backgroundWallpaper.ts", "backgroundWallpaper", "overlay.zIndex", "number"),
+					f("全屏壁纸位置", "backgroundWallpaper.ts", "backgroundWallpaper", "fullscreen.position", "select", { options: ["top", "center", "bottom", "left top", "right bottom"], editable: true }),
+				],
+			},
+			nav: {
+				title: "导航与页面",
+				desc: "导航栏、搜索、内置页面、Bangumi 和侧边栏组件。",
+				fields: [
+					f("导航标题", "siteConfig.ts", "siteConfig", "navbar.title"),
+					f("Logo 类型", "siteConfig.ts", "siteConfig", "navbar.logo.type", "segmented", { options: ["icon", "image", "url"] }),
+					f("Logo 值", "siteConfig.ts", "siteConfig", "navbar.logo.value"),
+					f("Logo alt", "siteConfig.ts", "siteConfig", "navbar.logo.alt"),
+					f("导航栏全宽", "siteConfig.ts", "siteConfig", "navbar.widthFull", "boolean"),
+					f("菜单对齐", "siteConfig.ts", "siteConfig", "navbar.menuAlign", "segmented", { options: ["left", "center"] }),
+					f("导航跟随主题", "siteConfig.ts", "siteConfig", "navbar.followTheme", "boolean"),
+					f("粘性导航栏", "siteConfig.ts", "siteConfig", "navbar.stickyNavbar", "boolean"),
+					f("搜索方式", "navBarConfig.ts", "navBarSearchConfig", "method", "select", { options: ["NavBarSearchMethod.PageFind"], rawEnum: true }),
+					f("链接菜单标题", "navBarConfig.ts", "navLinksMenu", "name"),
+					f("链接菜单地址", "navBarConfig.ts", "navLinksMenu", "url"),
+					f("链接菜单图标", "navBarConfig.ts", "navLinksMenu", "icon"),
+					f("链接菜单子项", "navBarConfig.ts", "navLinksMenu", "children", "arrayObject", {
+						schema: [
+							["name", "名称", "text"],
+							["url", "链接", "text"],
+							["external", "外链", "boolean"],
+							["icon", "图标", "text"],
+						],
+						empty: { name: "新链接", url: "https://", external: true, icon: "material-symbols:link" },
+					}),
+					f("导航基础 links 数组", "navBarConfig.ts", "getDynamicNavBarConfig", "links", "navLinksCode", { hint: "读取 getDynamicNavBarConfig() 里的 const links = [...]。可使用 LinkPreset.Home 这类预设，也可写 { name, url, external, icon, children }。保存时保留动态 push 逻辑。" }),
+					f("导航动态追加逻辑", "navBarConfig.ts", "getDynamicNavBarConfig", "pushes", "navPushesCode", { hint: "读取 getDynamicNavBarConfig() 中 const links = [...] 之后、return { links } 之前的代码。适合编辑 links.push(...)、页面开关判断和多级菜单。" }),
+					f("朋友页面", "siteConfig.ts", "siteConfig", "pages.friends", "boolean"),
+					f("赞助页面", "siteConfig.ts", "siteConfig", "pages.sponsor", "boolean"),
+					f("留言页面", "siteConfig.ts", "siteConfig", "pages.guestbook", "boolean"),
+					f("Bangumi 页面", "siteConfig.ts", "siteConfig", "pages.bangumi", "boolean"),
+					f("画廊页面", "siteConfig.ts", "siteConfig", "pages.gallery", "boolean"),
+					f("Bangumi 用户 ID", "siteConfig.ts", "siteConfig", "bangumi.userId"),
+					f("Bangumi 分类顺序", "siteConfig.ts", "siteConfig", "bangumi.categoryOrder", "lines"),
+					f("侧边栏启用", "sidebarConfig.ts", "sidebarLayoutConfig", "enable", "boolean"),
+					f("侧边栏位置", "sidebarConfig.ts", "sidebarLayoutConfig", "position", "segmented", { options: ["left", "right", "both"] }),
+					f("平板侧边栏", "sidebarConfig.ts", "sidebarLayoutConfig", "tabletSidebar", "segmented", { options: ["left", "right"] }),
+					f("文章页双侧栏", "sidebarConfig.ts", "sidebarLayoutConfig", "showBothSidebarsOnPostPage", "boolean"),
+					f("左侧组件", "sidebarConfig.ts", "sidebarLayoutConfig", "leftComponents", "componentList"),
+					f("右侧组件", "sidebarConfig.ts", "sidebarLayoutConfig", "rightComponents", "componentList"),
+					f("移动端组件", "sidebarConfig.ts", "sidebarLayoutConfig", "mobileBottomComponents", "componentList"),
+				],
+			},
+			profile: {
+				title: "个人资料",
+				desc: "侧边栏资料卡、社交链接、许可证和页脚。",
+				fields: [
+					f("头像", "profileConfig.ts", "profileConfig", "avatar", "imagePath"),
+					f("名称", "profileConfig.ts", "profileConfig", "name"),
+					f("简介", "profileConfig.ts", "profileConfig", "bio", "textarea"),
+					f("社交链接", "profileConfig.ts", "profileConfig", "links", "arrayObject", {
+						schema: [
+							["name", "名称", "text"],
+							["icon", "图标", "text"],
+							["url", "链接", "text"],
+							["showName", "显示名称", "boolean"],
+						],
+						empty: { name: "GitHub", icon: "fa7-brands:github", url: "https://github.com/", showName: false },
+					}),
+					f("许可证启用", "licenseConfig.ts", "licenseConfig", "enable", "boolean"),
+					f("许可证名称", "licenseConfig.ts", "licenseConfig", "name"),
+					f("许可证链接", "licenseConfig.ts", "licenseConfig", "url", "url"),
+					f("启用自定义页脚 HTML", "footerConfig.ts", "footerConfig", "enable", "boolean"),
+					f("页脚完整配置", "footerConfig.ts", "footerConfig", "", "json"),
+					f("页脚 HTML", "FooterConfig.html", "", "", "html"),
+				],
+			},
+			content: {
+				title: "内容组件",
+				desc: "公告、封面、友链、赞助、画廊和广告。",
+				subgroups: {
+					announcement: {
+						title: "公告",
+						fields: [
+							f("公告标题", "announcementConfig.ts", "announcementConfig", "title"),
+							f("公告图标", "announcementConfig.ts", "announcementConfig", "icon"),
+							f("公告类型", "announcementConfig.ts", "announcementConfig", "type", "select", { options: ["info", "warning", "success", "error"] }),
+							f("公告内容", "announcementConfig.ts", "announcementConfig", "content", "textarea"),
+							f("公告可关闭", "announcementConfig.ts", "announcementConfig", "closable", "boolean"),
+							f("公告链接启用", "announcementConfig.ts", "announcementConfig", "link.enable", "boolean"),
+							f("公告链接文字", "announcementConfig.ts", "announcementConfig", "link.text"),
+							f("公告链接 URL", "announcementConfig.ts", "announcementConfig", "link.url"),
+							f("公告外链", "announcementConfig.ts", "announcementConfig", "link.external", "boolean"),
+						],
+					},
+					cover: {
+						title: "封面",
+						fields: [
+							f("文章页显示封面", "coverImageConfig.ts", "coverImageConfig", "enableInPost", "boolean"),
+							f("随机封面启用", "coverImageConfig.ts", "coverImageConfig", "randomCoverImage.enable", "boolean"),
+							f("随机封面 API", "coverImageConfig.ts", "coverImageConfig", "randomCoverImage.apis", "lines"),
+							f("随机封面 API 预览", "coverImageConfig.ts", "coverImageConfig", "randomCoverImage.apis", "assetGallery"),
+							f("随机封面兜底图", "coverImageConfig.ts", "coverImageConfig", "randomCoverImage.fallback", "imagePath"),
+							f("随机封面加载状态", "coverImageConfig.ts", "coverImageConfig", "randomCoverImage.showLoading", "boolean"),
+						],
+					},
+					friends: {
+						title: "友链",
+						fields: [
+							f("友链页面标题", "friendsConfig.ts", "friendsPageConfig", "title"),
+							f("友链页面描述", "friendsConfig.ts", "friendsPageConfig", "description", "textarea"),
+							f("显示 friends.mdx", "friendsConfig.ts", "friendsPageConfig", "showCustomContent", "boolean"),
+							f("友链页评论", "friendsConfig.ts", "friendsPageConfig", "showComment", "boolean"),
+							f("友链随机排序", "friendsConfig.ts", "friendsPageConfig", "randomizeSort", "boolean"),
+							f("友链列表", "friendsConfig.ts", "friendsConfig", "", "arrayObject", {
+								schema: [
+									["title", "名称", "text"],
+									["imgurl", "头像", "text"],
+									["desc", "描述", "text"],
+									["siteurl", "站点", "text"],
+									["tags", "标签", "lines"],
+									["weight", "权重", "number"],
+									["enabled", "启用", "boolean"],
+								],
+								empty: { title: "新友链", imgurl: "", desc: "", siteurl: "https://", tags: [], weight: 0, enabled: true },
+							}),
+						],
+					},
+					gallery: {
+						title: "画廊",
+						fields: [
+							f("画廊列宽", "galleryConfig.ts", "galleryConfig", "columnWidth", "number"),
+							f("画廊相册", "galleryConfig.ts", "galleryConfig", "albums", "arrayObject", {
+								schema: [
+									["id", "ID", "text"],
+									["name", "名称", "text"],
+									["description", "描述", "text"],
+									["date", "日期", "text"],
+									["location", "地点", "text"],
+									["tags", "标签", "lines"],
+									["cover", "封面", "text"],
+								],
+								empty: { id: "new-album", name: "新相册", tags: [] },
+							}),
+						],
+					},
+					sponsor: {
+						title: "赞助",
+						fields: [
+							f("赞助页标题", "sponsorConfig.ts", "sponsorConfig", "title"),
+							f("赞助页描述", "sponsorConfig.ts", "sponsorConfig", "description", "textarea"),
+							f("赞助说明", "sponsorConfig.ts", "sponsorConfig", "usage", "textarea"),
+							f("显示赞助者列表", "sponsorConfig.ts", "sponsorConfig", "showSponsorsList", "boolean"),
+							f("赞助页评论", "sponsorConfig.ts", "sponsorConfig", "showComment", "boolean"),
+							f("文章页赞助按钮", "sponsorConfig.ts", "sponsorConfig", "showButtonInPost", "boolean"),
+							f("赞助方式", "sponsorConfig.ts", "sponsorConfig", "methods", "arrayObject", {
+								schema: [
+									["name", "名称", "text"],
+									["icon", "图标", "text"],
+									["qrCode", "二维码", "text"],
+									["link", "链接", "text"],
+									["description", "描述", "text"],
+									["enabled", "启用", "boolean"],
+								],
+								empty: { name: "新赞助方式", icon: "", qrCode: "", link: "", description: "", enabled: true },
+							}),
+							f("赞助者列表", "sponsorConfig.ts", "sponsorConfig", "sponsors", "arrayObject", {
+								schema: [
+									["name", "名称", "text"],
+									["amount", "金额/说明", "text"],
+									["date", "日期", "text"],
+								],
+								empty: { name: "赞助者", amount: "", date: new Date().toISOString().slice(0, 10) },
+							}),
+						],
+					},
+					ad1: {
+						title: "广告 1",
+						fields: [
+							f("广告 1 标题", "adConfig.ts", "adConfig1", "title"),
+							f("广告 1 内容", "adConfig.ts", "adConfig1", "content", "textarea"),
+							f("广告 1 图片", "adConfig.ts", "adConfig1", "image.src", "imagePath"),
+							f("广告 1 图片 alt", "adConfig.ts", "adConfig1", "image.alt"),
+							f("广告 1 图片链接", "adConfig.ts", "adConfig1", "image.link"),
+							f("广告 1 图片外链", "adConfig.ts", "adConfig1", "image.external", "boolean"),
+							f("广告 1 按钮文字", "adConfig.ts", "adConfig1", "link.text"),
+							f("广告 1 按钮链接", "adConfig.ts", "adConfig1", "link.url"),
+							f("广告 1 按钮外链", "adConfig.ts", "adConfig1", "link.external", "boolean"),
+							f("广告 1 可关闭", "adConfig.ts", "adConfig1", "closable", "boolean"),
+							f("广告 1 显示次数", "adConfig.ts", "adConfig1", "displayCount", "number"),
+							f("广告 1 过期时间", "adConfig.ts", "adConfig1", "expireDate"),
+							f("广告 1 内边距", "adConfig.ts", "adConfig1", "padding.all"),
+							f("广告 1 上内边距", "adConfig.ts", "adConfig1", "padding.top"),
+							f("广告 1 右内边距", "adConfig.ts", "adConfig1", "padding.right"),
+							f("广告 1 下内边距", "adConfig.ts", "adConfig1", "padding.bottom"),
+							f("广告 1 左内边距", "adConfig.ts", "adConfig1", "padding.left"),
+							f("广告 1 完整配置", "adConfig.ts", "adConfig1", "", "json"),
+						],
+					},
+					ad2: {
+						title: "广告 2",
+						fields: [
+							f("广告 2 标题", "adConfig.ts", "adConfig2", "title"),
+							f("广告 2 内容", "adConfig.ts", "adConfig2", "content", "textarea"),
+							f("广告 2 图片", "adConfig.ts", "adConfig2", "image.src", "imagePath"),
+							f("广告 2 图片 alt", "adConfig.ts", "adConfig2", "image.alt"),
+							f("广告 2 图片链接", "adConfig.ts", "adConfig2", "image.link"),
+							f("广告 2 图片外链", "adConfig.ts", "adConfig2", "image.external", "boolean"),
+							f("广告 2 按钮文字", "adConfig.ts", "adConfig2", "link.text"),
+							f("广告 2 按钮链接", "adConfig.ts", "adConfig2", "link.url"),
+							f("广告 2 按钮外链", "adConfig.ts", "adConfig2", "link.external", "boolean"),
+							f("广告 2 可关闭", "adConfig.ts", "adConfig2", "closable", "boolean"),
+							f("广告 2 显示次数", "adConfig.ts", "adConfig2", "displayCount", "number"),
+							f("广告 2 过期时间", "adConfig.ts", "adConfig2", "expireDate"),
+							f("广告 2 内边距", "adConfig.ts", "adConfig2", "padding.all"),
+							f("广告 2 上内边距", "adConfig.ts", "adConfig2", "padding.top"),
+							f("广告 2 右内边距", "adConfig.ts", "adConfig2", "padding.right"),
+							f("广告 2 下内边距", "adConfig.ts", "adConfig2", "padding.bottom"),
+							f("广告 2 左内边距", "adConfig.ts", "adConfig2", "padding.left"),
+							f("广告 2 完整配置", "adConfig.ts", "adConfig2", "", "json"),
+						],
+					},
+				},
+			},
+			comment: {
+				title: "评论系统",
+				desc: "全站评论提供商和各平台详细参数。",
+				fields: [
+					f("评论系统", "commentConfig.ts", "commentConfig", "type", "segmented", { options: ["none", "twikoo", "waline", "giscus", "disqus", "artalk"] }),
+					f("Twikoo envId", "commentConfig.ts", "commentConfig", "twikoo.envId"),
+					f("Twikoo region", "commentConfig.ts", "commentConfig", "twikoo.region"),
+					f("Twikoo 语言", "commentConfig.ts", "commentConfig", "twikoo.lang"),
+					f("Twikoo 访问计数", "commentConfig.ts", "commentConfig", "twikoo.visitorCount", "boolean"),
+					f("Waline serverURL", "commentConfig.ts", "commentConfig", "waline.serverURL"),
+					f("Waline 语言", "commentConfig.ts", "commentConfig", "waline.lang"),
+					f("Waline 表情包", "commentConfig.ts", "commentConfig", "waline.emoji", "lines"),
+					f("Waline 登录策略", "commentConfig.ts", "commentConfig", "waline.login", "segmented", { options: ["enable", "force", "disable"] }),
+					f("Waline 访问计数", "commentConfig.ts", "commentConfig", "waline.visitorCount", "boolean"),
+					f("Artalk server", "commentConfig.ts", "commentConfig", "artalk.server"),
+					f("Artalk locale", "commentConfig.ts", "commentConfig", "artalk.locale"),
+					f("Artalk 访问计数", "commentConfig.ts", "commentConfig", "artalk.visitorCount", "boolean"),
+					f("Giscus repo", "commentConfig.ts", "commentConfig", "giscus.repo"),
+					f("Giscus repoId", "commentConfig.ts", "commentConfig", "giscus.repoId"),
+					f("Giscus category", "commentConfig.ts", "commentConfig", "giscus.category"),
+					f("Giscus categoryId", "commentConfig.ts", "commentConfig", "giscus.categoryId"),
+					f("Giscus mapping", "commentConfig.ts", "commentConfig", "giscus.mapping"),
+					f("Giscus strict", "commentConfig.ts", "commentConfig", "giscus.strict"),
+					f("Giscus reactions", "commentConfig.ts", "commentConfig", "giscus.reactionsEnabled"),
+					f("Giscus metadata", "commentConfig.ts", "commentConfig", "giscus.emitMetadata"),
+					f("Giscus 输入位置", "commentConfig.ts", "commentConfig", "giscus.inputPosition"),
+					f("Giscus 语言", "commentConfig.ts", "commentConfig", "giscus.lang"),
+					f("Giscus loading", "commentConfig.ts", "commentConfig", "giscus.loading"),
+					f("Disqus shortname", "commentConfig.ts", "commentConfig", "disqus.shortname"),
+				],
+			},
+			music: {
+				title: "音乐播放器",
+				desc: "Meting、网易云/QQ 音乐、本地播放列表和播放器交互。",
+				fields: [
+					f("导航栏显示", "musicConfig.ts", "musicPlayerConfig", "showInNavbar", "boolean"),
+					f("播放模式来源", "musicConfig.ts", "musicPlayerConfig", "mode", "segmented", { options: ["meting", "local"] }),
+					f("音量", "musicConfig.ts", "musicPlayerConfig", "volume", "range", { min: 0, max: 1, step: 0.01 }),
+					f("循环模式", "musicConfig.ts", "musicPlayerConfig", "playMode", "segmented", { options: ["list", "one", "random"] }),
+					f("显示歌词", "musicConfig.ts", "musicPlayerConfig", "showLyrics", "boolean"),
+					f("Meting API", "musicConfig.ts", "musicPlayerConfig", "meting.api"),
+					f("音乐平台", "musicConfig.ts", "musicPlayerConfig", "meting.server", "select", { options: ["netease", "tencent", "kugou", "xiami", "baidu"] }),
+					f("Meting 类型", "musicConfig.ts", "musicPlayerConfig", "meting.type", "select", { options: ["song", "playlist", "album", "search", "artist"] }),
+					f("歌单/歌曲/专辑 ID", "musicConfig.ts", "musicPlayerConfig", "meting.id"),
+					f("Meting auth", "musicConfig.ts", "musicPlayerConfig", "meting.auth"),
+					f("备用 API", "musicConfig.ts", "musicPlayerConfig", "meting.fallbackApis", "lines"),
+					f("本地播放列表", "musicConfig.ts", "musicPlayerConfig", "local.playlist", "arrayObject", {
+						schema: [
+							["name", "歌曲", "text"],
+							["artist", "艺术家", "text"],
+							["url", "音频地址", "text"],
+							["cover", "封面", "text"],
+							["lrc", "歌词/LRC", "textarea"],
+						],
+						empty: { name: "新歌曲", artist: "", url: "", cover: "", lrc: "" },
+					}),
+				],
+			},
+			visual: {
+				title: "外观增强",
+				desc: "字体、樱花、看板娘、代码块、PlantUML 等高级视觉功能。",
+				fields: [
+					f("字体启用", "fontConfig.ts", "fontConfig", "enable", "boolean"),
+					f("字体预加载", "fontConfig.ts", "fontConfig", "preload", "boolean"),
+					f("选用字体", "fontConfig.ts", "fontConfig", "selected", "lines", { hint: "每行一个字体 id，例如 misans-regular" }),
+					f("备用字体", "fontConfig.ts", "fontConfig", "fallback", "lines"),
+					f("字体完整配置", "fontConfig.ts", "fontConfig", "", "json"),
+					f("樱花启用", "effectsConfig.ts", "sakuraConfig", "enable", "boolean"),
+					f("樱花可切换", "effectsConfig.ts", "sakuraConfig", "switchable", "boolean"),
+					f("樱花数量", "effectsConfig.ts", "sakuraConfig", "sakuraNum", "number"),
+					f("樱花限制次数", "effectsConfig.ts", "sakuraConfig", "limitTimes", "number"),
+					f("樱花最小尺寸", "effectsConfig.ts", "sakuraConfig", "size.min", "number"),
+					f("樱花最大尺寸", "effectsConfig.ts", "sakuraConfig", "size.max", "number"),
+					f("最小透明度", "effectsConfig.ts", "sakuraConfig", "opacity.min", "range", { min: 0, max: 1, step: 0.01 }),
+					f("最大透明度", "effectsConfig.ts", "sakuraConfig", "opacity.max", "range", { min: 0, max: 1, step: 0.01 }),
+					f("水平速度最小", "effectsConfig.ts", "sakuraConfig", "speed.horizontal.min", "number"),
+					f("水平速度最大", "effectsConfig.ts", "sakuraConfig", "speed.horizontal.max", "number"),
+					f("垂直速度最小", "effectsConfig.ts", "sakuraConfig", "speed.vertical.min", "number"),
+					f("垂直速度最大", "effectsConfig.ts", "sakuraConfig", "speed.vertical.max", "number"),
+					f("旋转速度", "effectsConfig.ts", "sakuraConfig", "speed.rotation", "number"),
+					f("淡出速度", "effectsConfig.ts", "sakuraConfig", "speed.fadeSpeed", "number"),
+					f("樱花 z-index", "effectsConfig.ts", "sakuraConfig", "zIndex", "number"),
+					f("Spine 启用", "pioConfig.ts", "spineModelConfig", "enable", "boolean"),
+					f("Spine 模型路径", "pioConfig.ts", "spineModelConfig", "model.path"),
+					f("Spine 缩放", "pioConfig.ts", "spineModelConfig", "model.scale", "number"),
+					f("Spine X 偏移", "pioConfig.ts", "spineModelConfig", "model.x", "number"),
+					f("Spine Y 偏移", "pioConfig.ts", "spineModelConfig", "model.y", "number"),
+					f("Spine 位置", "pioConfig.ts", "spineModelConfig", "position.corner", "select", { options: ["bottom-left", "bottom-right", "top-left", "top-right"] }),
+					f("Spine offsetX", "pioConfig.ts", "spineModelConfig", "position.offsetX", "number"),
+					f("Spine offsetY", "pioConfig.ts", "spineModelConfig", "position.offsetY", "number"),
+					f("Spine 宽度", "pioConfig.ts", "spineModelConfig", "size.width", "number"),
+					f("Spine 高度", "pioConfig.ts", "spineModelConfig", "size.height", "number"),
+					f("Spine 交互", "pioConfig.ts", "spineModelConfig", "interactive.enabled", "boolean"),
+					f("Spine 点击动画", "pioConfig.ts", "spineModelConfig", "interactive.clickAnimations", "lines"),
+					f("Spine 点击消息", "pioConfig.ts", "spineModelConfig", "interactive.clickMessages", "lines"),
+					f("Spine 消息显示时间", "pioConfig.ts", "spineModelConfig", "interactive.messageDisplayTime", "number"),
+					f("Spine 待机动画", "pioConfig.ts", "spineModelConfig", "interactive.idleAnimations", "lines"),
+					f("Spine 待机间隔", "pioConfig.ts", "spineModelConfig", "interactive.idleInterval", "number"),
+					f("Spine 移动端隐藏", "pioConfig.ts", "spineModelConfig", "responsive.hideOnMobile", "boolean"),
+					f("Spine 移动端断点", "pioConfig.ts", "spineModelConfig", "responsive.mobileBreakpoint", "number"),
+					f("Spine z-index", "pioConfig.ts", "spineModelConfig", "zIndex", "number"),
+					f("Spine 透明度", "pioConfig.ts", "spineModelConfig", "opacity", "range", { min: 0, max: 1, step: 0.01 }),
+					f("Live2D 启用", "pioConfig.ts", "live2dModelConfig", "enable", "boolean"),
+					f("Live2D 模型路径", "pioConfig.ts", "live2dModelConfig", "model.path"),
+					f("Live2D 位置", "pioConfig.ts", "live2dModelConfig", "position.corner", "select", { options: ["bottom-left", "bottom-right", "top-left", "top-right"] }),
+					f("Live2D offsetX", "pioConfig.ts", "live2dModelConfig", "position.offsetX", "number"),
+					f("Live2D offsetY", "pioConfig.ts", "live2dModelConfig", "position.offsetY", "number"),
+					f("Live2D 宽度", "pioConfig.ts", "live2dModelConfig", "size.width", "number"),
+					f("Live2D 高度", "pioConfig.ts", "live2dModelConfig", "size.height", "number"),
+					f("Live2D 交互", "pioConfig.ts", "live2dModelConfig", "interactive.enabled", "boolean"),
+					f("Live2D 点击消息", "pioConfig.ts", "live2dModelConfig", "interactive.clickMessages", "lines"),
+					f("Live2D 消息显示时间", "pioConfig.ts", "live2dModelConfig", "interactive.messageDisplayTime", "number"),
+					f("Live2D 移动端隐藏", "pioConfig.ts", "live2dModelConfig", "responsive.hideOnMobile", "boolean"),
+					f("Live2D 移动端断点", "pioConfig.ts", "live2dModelConfig", "responsive.mobileBreakpoint", "number"),
+					f("代码块主题深色", "expressiveCodeConfig.ts", "expressiveCodeConfig", "darkTheme"),
+					f("代码块主题浅色", "expressiveCodeConfig.ts", "expressiveCodeConfig", "lightTheme"),
+					f("代码块可折叠", "expressiveCodeConfig.ts", "expressiveCodeConfig", "pluginCollapsible.enable", "boolean"),
+					f("折叠行阈值", "expressiveCodeConfig.ts", "expressiveCodeConfig", "pluginCollapsible.lineThreshold", "number"),
+					f("预览行数", "expressiveCodeConfig.ts", "expressiveCodeConfig", "pluginCollapsible.previewLines", "number"),
+					f("默认折叠", "expressiveCodeConfig.ts", "expressiveCodeConfig", "pluginCollapsible.defaultCollapsed", "boolean"),
+					f("语言徽章", "expressiveCodeConfig.ts", "expressiveCodeConfig", "pluginLanguageBadge.enable", "boolean"),
+					f("PlantUML 启用", "plantumlConfig.ts", "plantumlConfig", "enable", "boolean"),
+					f("PlantUML 服务", "plantumlConfig.ts", "plantumlConfig", "server", "url"),
+					f("PlantUML 浅色主题", "plantumlConfig.ts", "plantumlConfig", "lightTheme"),
+					f("PlantUML 深色主题", "plantumlConfig.ts", "plantumlConfig", "darkTheme"),
+				],
+			},
+			analytics: {
+				title: "统计分析",
+				desc: "Google Analytics、Microsoft Clarity、Umami、Relpays 和 51la。",
+				fields: [
+					f("Google Analytics ID", "siteConfig.ts", "siteConfig", "analytics.googleAnalyticsId"),
+					f("Microsoft Clarity ID", "siteConfig.ts", "siteConfig", "analytics.microsoftClarityId"),
+					f("Umami Website ID", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.websiteId"),
+					f("Umami Script URL", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.scriptUrl", "url"),
+					f("Umami 追踪外链", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.trackOutboundLinks", "boolean"),
+					f("Umami Web Vitals", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.collectWebVitals", "boolean"),
+					f("Relpays 启用", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.relpays.enabled", "boolean"),
+					f("Relpays 采样率", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.relpays.sampleRate", "range", { min: 0, max: 1, step: 0.01 }),
+					f("Relpays 遮罩等级", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.relpays.maskLevel", "segmented", { options: ["moderate", "strict"] }),
+					f("Relpays 最大时长", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.relpays.maxDuration", "number"),
+					f("Relpays 屏蔽选择器", "siteConfig.ts", "siteConfig", "analytics.umamiAnalytics.relpays.blockSelector"),
+					f("51la ID", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.Id"),
+					f("51la SDK URL", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.sdkUrl"),
+					f("51la CK", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.ck"),
+					f("51la 自动追踪", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.autoTrack", "boolean"),
+					f("51la Hash 模式", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.hashMode", "boolean"),
+					f("51la 录屏", "siteConfig.ts", "siteConfig", "analytics.la51Analytics.screenRecord", "boolean"),
+				],
+			},
+		};
+
+		function f(label, file, objectName, path, type = "text", options = {}) {
+			return { label, file, objectName, path, type, ...options };
+		}
+
+		function isSupported() {
+			return "showDirectoryPicker" in window;
+		}
+
+		function setStatus(text, level = "") {
+			els.status.textContent = text;
+			els.status.className = `status ${level}`.trim();
+		}
+
+		async function getDir(root, parts, create = false) {
+			let current = root;
+			for (const part of parts) current = await current.getDirectoryHandle(part, { create });
+			return current;
+		}
+
+		async function readFile(dir, name) {
+			const handle = await dir.getFileHandle(name);
+			return await (await handle.getFile()).text();
+		}
+
+		async function writeFile(dir, name, text) {
+			const handle = await dir.getFileHandle(name, { create: true });
+			const writable = await handle.createWritable();
+			await writable.write(text);
+			await writable.close();
+		}
+
+		async function readNestedFile(root, parts) {
+			const file = parts.at(-1);
+			const dir = await getDir(root, parts.slice(0, -1));
+			return await readFile(dir, file);
+		}
+
+		async function getNestedFileHandle(root, parts) {
+			const file = parts.at(-1);
+			const dir = await getDir(root, parts.slice(0, -1));
+			return await dir.getFileHandle(file);
+		}
+
+		async function writeNestedFile(root, parts, text) {
+			const file = parts.at(-1);
+			const dir = await getDir(root, parts.slice(0, -1), true);
+			await writeFile(dir, file, text);
+		}
+
+		async function removeNestedFile(root, parts) {
+			const file = parts.at(-1);
+			const dir = await getDir(root, parts.slice(0, -1));
+			await dir.removeEntry(file);
+		}
+
+		async function removeFile(dir, name) {
+			await dir.removeEntry(name);
+		}
+
+		async function listFilesRecursive(dir, prefix = "") {
+			const out = [];
+			for await (const [name, handle] of dir.entries()) {
+				const path = prefix ? `${prefix}/${name}` : name;
+				if (handle.kind === "file") {
+					out.push({ path, handle });
+				} else if (!name.startsWith(".") && name !== "node_modules") {
+					out.push(...await listFilesRecursive(handle, path));
+				}
+			}
+			return out;
+		}
+
+		async function pickRepo() {
+			if (!isSupported()) {
+				setStatus("当前浏览器不支持目录读写，请使用最新版 Chrome 或 Edge。", "error");
+				return;
+			}
+			try {
+				const root = await window.showDirectoryPicker({ mode: "readwrite" });
+				const pkg = await root.getFileHandle("package.json").catch(() => null);
+				const configDir = await getDir(root, CONFIG_DIR).catch(() => null);
+				const postsDir = await getDir(root, POSTS_DIR).catch(() => null);
+				if (!pkg || !configDir) {
+					setStatus("所选目录不是 Firefly/Astro 项目：未找到 package.json 或 src/config。", "error");
+					return;
+				}
+				state.root = root;
+				state.configDir = configDir;
+				state.postsDir = postsDir;
+				state.backupDir = await getDir(root, BACKUP_DIR, true);
+				await saveHandle(REPO_HANDLE_KEY, root);
+				els.repoName.textContent = root.name;
+				els.repoMeta.textContent = postsDir ? "已授权配置和文章读写。" : `已授权配置读写，但未找到 ${POSTS_DIR.join("/")}。`;
+				await reloadAll();
+				els.reloadBtn.disabled = false;
+				els.saveBtn.disabled = false;
+				renderNav();
+				render();
+			} catch (error) {
+				if (error.name !== "AbortError") {
+					console.error(error);
+					setStatus(`选择仓库失败：${error.message}`, "error");
+				}
+			}
+		}
+
+		async function reloadAll() {
+			for (const url of state.assetUrls.values()) URL.revokeObjectURL(url);
+			state.assetUrls.clear();
+			state.files.clear();
+			state.posts = [];
+			state.dirtyFiles.clear();
+			state.dirtyPosts.clear();
+			state.changeNotes.clear();
+			for (const file of CONFIG_FILES) {
+				state.files.set(file, await readFile(state.configDir, file).catch(() => ""));
+			}
+			applyThemeHueFromConfig();
+			if (state.postsDir) {
+				const postFiles = (await listFilesRecursive(state.postsDir))
+					.filter((item) => /\.(md|mdx)$/i.test(item.path))
+					.sort((a, b) => a.path.localeCompare(b.path));
+				for (const item of postFiles) {
+					const text = await (await item.handle.getFile()).text();
+					state.posts.push(parsePost(item.path, text));
+				}
+				if (!state.activePostPath && state.posts[0]) state.activePostPath = state.posts[0].path;
+			}
+			await loadBackupSessions();
+			setStatus(`已读取 ${state.files.size} 个配置文件、${state.posts.length} 篇文章、${state.backupSessions.length} 个备份会话。`, "ok");
+		}
+
+		function renderNav() {
+			els.nav.innerHTML = navGroups.map(([id, label]) =>
+				`<button type="button" data-id="${id}" class="${state.activeGroup === id ? "active" : ""}">${label}${dirtyMarkForGroup(id)}</button>`
+			).join("");
+			els.nav.querySelectorAll("button").forEach((button) => {
+				button.addEventListener("click", () => {
+					state.activeGroup = button.dataset.id;
+					if (state.activeGroup === "content") {
+						const subgroups = fieldGroups.content.subgroups;
+						const subgroupKeys = Object.keys(subgroups);
+						if (!state.activeSubgroup || !subgroups[state.activeSubgroup]) {
+							state.activeSubgroup = subgroupKeys[0];
+						}
+					} else {
+						state.activeSubgroup = null;
+					}
+					renderNav();
+					render();
+				});
+			});
+			if (state.activeGroup === "content" && fieldGroups.content.subgroups) {
+				const subgroupKeys = Object.keys(fieldGroups.content.subgroups);
+				const subgroupHtml = subgroupKeys.map((key) => {
+					const subgroup = fieldGroups.content.subgroups[key];
+					return `<button type="button" data-subgroup="${key}" class="${state.activeSubgroup === key ? "active" : ""}">${subgroup.title}</button>`;
+				}).join("");
+				const subNav = document.createElement("div");
+				subNav.className = "nav-sub";
+				subNav.innerHTML = subgroupHtml;
+				const contentBtn = els.nav.querySelector('button[data-id="content"]');
+				if (contentBtn && contentBtn.nextElementSibling?.classList.contains("nav-sub")) {
+				} else if (contentBtn) {
+					contentBtn.after(subNav);
+				}
+				subNav.querySelectorAll("button").forEach((button) => {
+					button.addEventListener("click", (e) => {
+						e.stopPropagation();
+						state.activeSubgroup = button.dataset.subgroup;
+						renderNav();
+						render();
+					});
+				});
+			}
+		}
+
+		function dirtyMarkForGroup(id) {
+			if (id === "posts" && state.dirtyPosts.size) return ` (${state.dirtyPosts.size})`;
+			if (id === "source" && state.dirtyFiles.size) return ` (${state.dirtyFiles.size})`;
+			const group = fieldGroups[id];
+			if (!group) return "";
+			let files;
+			if (group.subgroups) {
+				const allFields = Object.values(group.subgroups).flatMap((sg) => sg.fields);
+				files = new Set(allFields.map((field) => field.file));
+			} else {
+				files = new Set(group.fields.map((field) => field.file));
+			}
+			const count = [...state.dirtyFiles].filter((file) => files.has(file)).length;
+			return count ? ` (${count})` : "";
+		}
+
+		function render() {
+			if (!state.root) return;
+			if (state.activeGroup === "dashboard") return renderDashboard();
+			if (state.activeGroup === "posts") return renderPosts();
+			if (state.activeGroup === "backups") return renderBackups();
+			if (state.activeGroup === "source") return renderSource();
+			const group = fieldGroups[state.activeGroup];
+			if (state.activeGroup === "content" && group.subgroups && state.activeSubgroup) {
+				const subgroup = group.subgroups[state.activeSubgroup];
+				renderFieldGroupWithSubgroup(group, subgroup, state.activeSubgroup);
+			} else {
+				renderFieldGroup(group);
+			}
+		}
+
+		function renderDashboard() {
+			const dirty = state.dirtyFiles.size + state.dirtyPosts.size;
+			els.content.innerHTML = `
+				<div class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">总览</h2>
+							<div class="subtle">当前仓库：${esc(state.root.name)}</div>
+						</div>
+					</div>
+					<div class="panel-body">
+						<div class="grid three">
+							${metric("配置文件", state.files.size)}
+							${metric("文章", state.posts.length)}
+							${metric("待保存", dirty)}
+							${metric("备份会话", state.backupSessions.length)}
+							${metric("草稿", state.posts.filter((p) => p.frontmatter.draft).length)}
+							${metric("置顶文章", state.posts.filter((p) => p.frontmatter.pinned).length)}
+						</div>
+						<div class="notice" style="margin-top:15px">建议操作顺序：先在 Git 中确认工作区状态，再使用本工具修改。每次点击“保存全部修改”都会在仓库根目录的 .firefly-config-manager-backups 创建完整会话备份，可在“备份恢复”中回滚。主题色会写入 siteConfig.themeColor.hue；Firefly 前端如果曾在浏览器里保存过 localStorage.hue，会优先显示本地缓存色，需要在网站显示设置中重置主题色或清除该站点 localStorage.hue 后才会看到新的配置默认色。</div>
+						<div class="panel" style="margin-top:15px">
+							<div class="panel-body">
+								<div class="item-title">常用文档入口</div>
+								<div class="chips" style="margin-top:10px">
+									<a href="https://docs-firefly.cuteleaf.cn/zh/guide/getting-started.html" target="_blank" rel="noreferrer"><button type="button">Firefly 入门</button></a>
+									<a href="https://docs-firefly.cuteleaf.cn/zh/guide/writing.html" target="_blank" rel="noreferrer"><button type="button">文章写作</button></a>
+									<a href="https://docs-firefly.cuteleaf.cn/zh/guide/wallpaper.html" target="_blank" rel="noreferrer"><button type="button">壁纸</button></a>
+									<a href="https://docs-firefly.cuteleaf.cn/zh/guide/comment.html" target="_blank" rel="noreferrer"><button type="button">评论</button></a>
+									<a href="https://docs-firefly.cuteleaf.cn/zh/guide/pio.html" target="_blank" rel="noreferrer"><button type="button">看板娘</button></a>
+									<a href="https://docs.astro.build/zh-cn/getting-started/" target="_blank" rel="noreferrer"><button type="button">Astro 文档</button></a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			`;
+		}
+
+		function metric(label, value) {
+			return `<div class="panel"><div class="panel-body"><div class="subtle">${label}</div><div style="font-size:28px;font-weight:800">${value}</div></div></div>`;
+		}
+
+		function renderFieldGroup(group) {
+			const html = group.fields.map((field, index) => renderField(field, `${state.activeGroup}-${index}`)).join("");
+			els.content.innerHTML = `
+				<section class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">${esc(group.title)}</h2>
+							<div class="subtle">${esc(group.desc)}</div>
+						</div>
+					</div>
+					<div class="panel-body"><div class="grid">${html}</div></div>
+				</section>
+			`;
+			group.fields.forEach((field, index) => bindField(field, `${state.activeGroup}-${index}`));
+		}
+
+		function renderFieldGroupWithSubgroup(group, subgroup, subgroupKey) {
+			const html = subgroup.fields.map((field, index) => renderField(field, `${state.activeGroup}-${subgroupKey}-${index}`)).join("");
+			els.content.innerHTML = `
+				<section class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">${esc(group.title)}</h2>
+							<div class="subtle">${esc(group.desc)}</div>
+						</div>
+					</div>
+					<div class="panel-body"><div class="grid">${html}</div></div>
+				</section>
+			`;
+			subgroup.fields.forEach((field, index) => bindField(field, `${state.activeGroup}-${subgroupKey}-${index}`));
+		}
+
+		function renderField(field, id) {
+			const read = readFieldValue(field);
+			const disabled = read.ok ? "" : "disabled";
+			const hint = read.ok
+				? [read.missing ? "当前配置未写出这个可选字段，修改后会自动插入到配置对象中。" : "", field.hint || ""].filter(Boolean).join(" ")
+				: `未找到 ${field.file} 中的 ${field.objectName}${field.path ? "." + field.path : ""}，可在“源码编辑”中修改。`;
+			const value = read.ok ? read.value : "";
+
+			if (field.type === "boolean") {
+				return `<div class="field"><label class="check"><input id="${id}" type="checkbox" ${value ? "checked" : ""} ${disabled}><span>${esc(field.label)}</span></label>${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "select") {
+				const options = [...new Set([...(field.options || []), field.editable && value ? String(value) : ""].filter(Boolean))]
+					.map((option) => `<option value="${esc(option)}" ${String(value) === option ? "selected" : ""}>${esc(option)}</option>`).join("");
+				return wrap(field, id, `<select id="${id}" ${disabled}>${options}</select>`, hint);
+			}
+			if (field.type === "segmented") {
+				const buttons = (field.options || []).map((option) => `<button type="button" data-value="${esc(option)}" class="${String(value) === option ? "active" : ""}" ${disabled}>${esc(option)}</button>`).join("");
+				return `<div class="field"><label>${esc(field.label)}</label><div id="${id}" class="chips">${buttons}</div>${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "range") {
+				const min = field.min ?? 0, max = field.max ?? 100, step = field.step ?? 1;
+				return wrap(field, id, `<div class="range-row"><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${esc(value ?? min)}" ${disabled}><input id="${id}-num" type="number" min="${min}" max="${max}" step="${step}" value="${esc(value ?? min)}" ${disabled}></div>`, hint);
+			}
+			if (field.type === "colorPreview") {
+				return `<div class="field"><label>${esc(field.label)}</label><div id="${id}-preview" class="color-preview" style="background:${themePreview(Number(value) || 0)}"></div>${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "assetGallery") {
+				return `<div class="field" style="grid-column:1/-1"><label>${esc(field.label)}</label><div id="${id}-preview">${assetGalleryHtml(value)}</div>${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "textarea" || field.type === "lines" || field.type === "json" || field.type === "html") {
+				let shown = value ?? "";
+				let cls = "";
+				if (field.type === "lines") shown = linesValue(value);
+				if (field.type === "json") { shown = jsonValue(value); cls = "code-area"; }
+				if (field.type === "html") { shown = value; cls = "code-area"; }
+				return wrap(field, id, `<textarea id="${id}" class="${cls}" ${disabled}>${esc(String(shown))}</textarea>`, hint);
+			}
+			if (field.type === "navLinksCode" || field.type === "navPushesCode") {
+				return `<div class="field" style="grid-column:1/-1"><label for="${id}">${esc(field.label)}</label><textarea id="${id}" class="code-area" ${disabled}>${esc(String(value ?? ""))}</textarea>${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "arrayObject" || field.type === "componentList") {
+				return `<div class="field" style="grid-column:1/-1"><label>${esc(field.label)}</label>${renderArrayEditor(field, id, value, disabled)}${hintHtml(hint)}</div>`;
+			}
+			if (field.type === "imagePath") {
+				return wrap(field, id, `<input id="${id}" type="text" value="${esc(value ?? "")}" ${disabled}><div id="${id}-preview">${imagePreview(value)}</div>`, hint);
+			}
+			if (isImageLikeField(field)) {
+				return wrap(field, id, `<input id="${id}" type="text" value="${esc(value ?? "")}" ${disabled}><div id="${id}-preview">${imagePreview(value)}</div>`, hint);
+			}
+			const inputType = field.type === "number" ? "number" : field.type === "url" ? "url" : field.type === "date" ? "date" : "text";
+			return wrap(field, id, `<input id="${id}" type="${inputType}" value="${esc(value ?? "")}" ${disabled}>`, hint);
+		}
+
+		function wrap(field, id, control, hint) {
+			return `<div class="field"><label for="${id}">${esc(field.label)}</label>${control}${hintHtml(hint)}</div>`;
+		}
+
+		function hintHtml(hint) {
+			return hint ? `<div class="hint">${esc(hint)}</div>` : "";
+		}
+
+		function imagePreview(value) {
+			if (!value) return "";
+			const key = `asset:${value}`;
+			const src = resolveDisplayUrl(String(value), key);
+			if (src) return `<img class="preview-img" src="${esc(src)}" alt="">`;
+			return `<div class="hint" data-asset-key="${esc(key)}">预览读取中或路径无法解析</div>`;
+		}
+
+		function resolveDisplayUrl(value, key = value) {
+			if (!value) return "";
+			if (/^https?:\/\//.test(value)) return value;
+			if (/^(data:|blob:)/.test(value)) return value;
+			if (state.assetUrls.has(key)) return state.assetUrls.get(key);
+			resolveAssetUrlAsync(value, key);
+			return "";
+		}
+
+		function assetGalleryHtml(value) {
+			const values = Array.isArray(value) ? value : value ? [value] : [];
+			if (!values.length) return `<div class="empty">没有可预览的资源路径</div>`;
+			return `<div class="asset-strip">${values.map((item) => {
+				const key = `gallery:${item}`;
+				const src = resolveDisplayUrl(String(item), key);
+				return `<div class="asset-card">${src ? `<img data-asset-key="${esc(key)}" src="${esc(src)}" alt="">` : `<div class="empty" data-asset-key="${esc(key)}">读取中</div>`}<div class="hint">${esc(item)}</div></div>`;
+			}).join("")}</div>`;
+		}
+
+		function updatePreviewForField(field, id, value) {
+			if (!isImageLikeField(field) && field.type !== "assetGallery") return;
+			const box = document.getElementById(`${id}-preview`);
+			if (!box) return;
+			box.innerHTML = field.type === "assetGallery" ? assetGalleryHtml(value) : imagePreview(value);
+		}
+
+		function updateDependentPreviews(changedField) {
+			const group = fieldGroups[state.activeGroup];
+			if (!group) return;
+			group.fields.forEach((field, index) => {
+				const id = `${state.activeGroup}-${index}`;
+				if (field.type === "assetGallery" && sameTarget(field, changedField)) {
+					const current = readFieldValue(field);
+					updatePreviewForField(field, id, current.value);
+				}
+				if (field.type === "colorPreview" && sameTarget(field, changedField)) {
+					const current = readFieldValue(field);
+					updateColorPreview(id, current.value);
+				}
+			});
+		}
+
+		function sameTarget(a, b) {
+			return a.file === b.file && a.objectName === b.objectName && a.path === b.path;
+		}
+
+		function isThemeHueField(field) {
+			return field.file === "siteConfig.ts" && field.objectName === "siteConfig" && field.path === "themeColor.hue";
+		}
+
+		function updateColorPreview(id, value) {
+			const box = document.getElementById(`${id}-preview`);
+			if (box) box.style.background = themePreview(value);
+		}
+
+		function applyThemeHueFromConfig() {
+			const value = readFieldValue({ file: "siteConfig.ts", objectName: "siteConfig", path: "themeColor.hue", type: "number" }).value;
+			applyThemeHue(value);
+		}
+
+		function applyThemeHue(value) {
+			const hue = clamp(Number(value) || 0, 0, 360);
+			const root = document.documentElement.style;
+			root.setProperty("--hue", String(hue));
+			root.setProperty("--bg", `oklch(0.95 0.01 ${hue})`);
+			root.setProperty("--soft", `oklch(0.96 0.025 ${hue})`);
+			root.setProperty("--soft-2", `oklch(0.985 0.014 ${hue})`);
+			root.setProperty("--line", `oklch(0.86 0.025 ${hue})`);
+			root.setProperty("--brand", themePrimary(hue));
+			root.setProperty("--brand-dark", `oklch(0.60 0.14 ${hue})`);
+			root.setProperty("--focus", `oklch(0.7 0.14 ${hue} / 0.22)`);
+		}
+
+		function themePrimary(value) {
+			const hue = clamp(Number(value) || 0, 0, 360);
+			return `oklch(0.70 0.14 ${hue})`;
+		}
+
+		function themePreview(value) {
+			const hue = clamp(Number(value) || 0, 0, 360);
+			return `linear-gradient(90deg, oklch(0.70 0.14 ${hue}) 0 50%, oklch(0.75 0.14 ${hue}) 50% 100%)`;
+		}
+
+		function clamp(value, min, max) {
+			return Math.min(max, Math.max(min, value));
+		}
+
+		async function resolveAssetUrlAsync(value, key = value) {
+			if (!state.root || state.assetUrls.has(key)) return "";
+			const clean = String(value || "").trim();
+			const candidates = assetCandidates(clean);
+			for (const parts of candidates) {
+				try {
+					const handle = await getNestedFileHandle(state.root, parts);
+					const file = await handle.getFile();
+					const url = URL.createObjectURL(file);
+					state.assetUrls.set(key, url);
+					refreshAssetImages(key, url);
+					return url;
+				} catch { }
+			}
+			state.assetUrls.set(key, "");
+			return "";
+		}
+
+		function refreshAssetImages(key, url) {
+			document.querySelectorAll(`[data-asset-key="${cssEscape(key)}"]`).forEach((node) => {
+				if (node.tagName === "IMG") {
+					node.src = url;
+				} else {
+					node.classList.remove("hint", "empty");
+					node.innerHTML = `<img class="preview-img" data-asset-key="${esc(key)}" src="${esc(url)}" alt="">`;
+				}
+			});
+		}
+
+		function cssEscape(value) {
+			if (window.CSS && CSS.escape) return CSS.escape(value);
+			return String(value).replace(/["\\]/g, "\\$&");
+		}
+
+		function assetCandidates(value) {
+			const v = value.replace(/\\/g, "/").replace(/^file:\/\/\/?/i, "");
+			const stripped = v.replace(/^\.\//, "").replace(/^\/+/, "");
+			const candidates = [];
+			if (!stripped) return candidates;
+			candidates.push(normalizeParts(stripped.split("/")));
+			candidates.push(normalizeParts(["public", ...stripped.split("/")]));
+			candidates.push(normalizeParts(["src", ...stripped.split("/")]));
+			if (stripped.startsWith("assets/")) {
+				candidates.push(normalizeParts(["public", ...stripped.split("/")]));
+				candidates.push(normalizeParts(["src", ...stripped.split("/")]));
+			}
+			return candidates;
+		}
+
+		function isImageLikeField(field) {
+			return isImageLikeKey(field.path || "") || /头像|图片|图|封面|壁纸|二维码|Logo/i.test(field.label || "");
+		}
+
+		function isImageLikeKey(key) {
+			return /(^|\.)(src|avatar|image|imgurl|cover|qrCode|fallback|logo)$/i.test(key || "");
+		}
+
+		function renderArrayEditor(field, id, value, disabled) {
+			if (!Array.isArray(value)) {
+				return `<textarea id="${id}" class="code-area" ${disabled}>${esc(jsonValue(value))}</textarea>`;
+			}
+			const schema = field.type === "componentList" ? componentSchema() : field.schema;
+			const cards = value.map((item, idx) => renderArrayCard(id, schema, item, idx, disabled)).join("");
+			return `
+				<div class="array-box" id="${id}" data-array="1">
+					<div class="array-head"><span>${value.length} 项</span><button type="button" data-action="add" ${disabled}>新增</button></div>
+					<div class="array-items">${cards || `<div class="empty">暂无项目</div>`}</div>
+				</div>
+			`;
+		}
+
+		function componentSchema() {
+			return [
+				["type", "组件类型", "select", ["profile", "announcement", "music", "categories", "tags", "advertisement", "stats", "calendar", "sidebarToc"]],
+				["enable", "启用", "boolean"],
+				["position", "位置", "select", ["top", "sticky"]],
+				["showOnPostPage", "文章页显示", "boolean"],
+				["showOnNonPostPage", "非文章页显示", "boolean"],
+				["configId", "配置 ID", "text"],
+				["responsive.hidden", "隐藏设备", "lines"],
+				["responsive.collapseThreshold", "折叠阈值", "number"],
+				["customProps", "自定义属性", "json"],
+			];
+		}
+
+		function renderArrayCard(id, schema, item, idx, disabled) {
+			const fields = schema.map(([key, label, type, options]) => {
+				const val = getObjectPath(item, key);
+				const cid = `${id}-${idx}-${key}`;
+				if (type === "boolean") return `<label class="check"><input data-key="${key}" type="checkbox" ${val ? "checked" : ""} ${disabled}><span>${esc(label)}</span></label>`;
+				if (type === "select") return `<div class="field"><label>${esc(label)}</label><select data-key="${key}" ${disabled}>${options.map((o) => `<option value="${esc(o)}" ${String(val ?? "") === o ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></div>`;
+				if (type === "lines") return `<div class="field"><label>${esc(label)}</label><textarea data-key="${key}" ${disabled}>${esc(linesValue(val))}</textarea></div>`;
+				if (type === "textarea") return `<div class="field"><label>${esc(label)}</label><textarea data-key="${key}" ${disabled}>${esc(val ?? "")}</textarea></div>`;
+				if (type === "json") return `<div class="field"><label>${esc(label)}</label><textarea data-key="${key}" class="code-area" ${disabled}>${esc(jsonValue(val ?? {}))}</textarea></div>`;
+				const preview = isImageLikeKey(key) ? `<div class="inline-preview" data-preview-key="${esc(key)}">${imagePreview(val)}</div>` : "";
+				return `<div class="field"><label>${esc(label)}</label><input data-key="${key}" type="${type === "number" ? "number" : "text"}" value="${esc(val ?? "")}" ${disabled}>${preview}</div>`;
+			}).join("");
+			return `
+				<div class="array-card" data-index="${idx}">
+					<div class="array-card-head"><strong>#${idx + 1}</strong><button type="button" class="danger" data-action="remove" ${disabled}>删除</button></div>
+					<div class="grid">${fields}</div>
+				</div>
+			`;
+		}
+
+		function bindField(field, id) {
+			const el = document.getElementById(id);
+			if (!el) return;
+			if (field.type === "segmented") {
+				el.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
+					applyField(field, button.dataset.value);
+					render();
+				}));
+				return;
+			}
+			if (field.type === "range") {
+				const num = document.getElementById(`${id}-num`);
+				const sync = (source, target) => {
+					target.value = source.value;
+					applyField(field, Number(source.value), true);
+					if (isThemeHueField(field)) applyThemeHue(source.value);
+					updateDependentPreviews(field);
+				};
+				el.addEventListener("input", () => sync(el, num));
+				num.addEventListener("input", () => sync(num, el));
+				el.addEventListener("change", () => setStatus(`${field.label} 已更新，尚未保存。`, "warn"));
+				num.addEventListener("change", () => setStatus(`${field.label} 已更新，尚未保存。`, "warn"));
+				return;
+			}
+			if (field.type === "arrayObject" || field.type === "componentList") {
+				bindArrayEditor(field, id);
+				return;
+			}
+			const event = field.type === "boolean" ? "change" : "input";
+			el.addEventListener(event, debounce(() => {
+				const value = fieldInputValue(field, el);
+				applyField(field, value, event === "input");
+				if (isThemeHueField(field)) applyThemeHue(value);
+				updatePreviewForField(field, id, value);
+				updateDependentPreviews(field);
+			}, event === "input" ? 250 : 0));
+		}
+
+		function bindArrayEditor(field, id) {
+			const root = document.getElementById(id);
+			if (!root) return;
+			const read = readFieldValue(field);
+			let current = Array.isArray(read.value) ? structuredClone(read.value) : [];
+			root.addEventListener("click", (event) => {
+				const action = event.target.dataset.action;
+				if (!action) return;
+				if (action === "add") current.push(structuredClone(field.empty || {}));
+				if (action === "remove") current.splice(Number(event.target.closest(".array-card").dataset.index), 1);
+				applyField(field, current);
+				render();
+			});
+			root.addEventListener("input", debounce(() => {
+				current = collectArray(root, field.type === "componentList" ? componentSchema() : field.schema);
+				applyField(field, current, true);
+			}, 250));
+			root.addEventListener("input", (event) => {
+				const key = event.target?.dataset?.key;
+				if (!key || !isImageLikeKey(key)) return;
+				const preview = event.target.closest(".field")?.querySelector(`[data-preview-key="${cssEscape(key)}"], [data-preview-key="${esc(key)}"]`);
+				if (preview) preview.innerHTML = imagePreview(event.target.value);
+			});
+			root.addEventListener("change", () => {
+				current = collectArray(root, field.type === "componentList" ? componentSchema() : field.schema);
+				applyField(field, current);
+			});
+		}
+
+		function collectArray(root, schema) {
+			return [...root.querySelectorAll(".array-card")].map((card) => {
+				const obj = {};
+				for (const [key, , type] of schema) {
+					const input = card.querySelector(`[data-key="${key}"]`);
+					if (!input) continue;
+					if (type === "boolean") setObjectPath(obj, key, input.checked);
+					else if (type === "number") {
+						if (input.value !== "") setObjectPath(obj, key, Number(input.value));
+					}
+					else if (type === "lines") setObjectPath(obj, key, input.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
+					else if (type === "json") setObjectPath(obj, key, parseLoose(input.value || "{}"));
+					else if (input.value !== "") setObjectPath(obj, key, input.value);
+				}
+				return obj;
+			});
+		}
+
+		function fieldInputValue(field, el) {
+			if (field.type === "boolean") return el.checked;
+			if (field.type === "number") return el.value === "" ? 0 : Number(el.value);
+			if (field.type === "lines") {
+				const lines = el.value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+				const current = readFieldValue(field).value;
+				if (Array.isArray(current)) return lines;
+				return lines.length <= 1 ? (lines[0] || "") : lines;
+			}
+			if (field.type === "json") return parseLoose(el.value);
+			if (field.type === "html") return el.value;
+			if (field.type === "navLinksCode" || field.type === "navPushesCode") return el.value;
+			if (field.rawEnum) return { __raw: el.value };
+			return el.value;
+		}
+
+		function applyField(field, value, quiet = false) {
+			try {
+				if (field.type === "html") {
+					state.files.set(field.file, String(value));
+				} else if (field.type === "navLinksCode" || field.type === "navPushesCode") {
+					const text = state.files.get(field.file) || "";
+					state.files.set(field.file, writeNavBarDynamicPart(text, field.type, String(value)));
+				} else if (field.objectName === "navLinksMenu") {
+					const text = state.files.get(field.file) || "";
+					state.files.set(field.file, writeNavLinksMenuValue(text, field.path, value));
+				} else {
+					const text = state.files.get(field.file) || "";
+					state.files.set(field.file, writeFieldValue(text, field, value));
+				}
+				state.dirtyFiles.add(field.file);
+				recordChange(field.file, fieldChangeLabel(field));
+				renderNav();
+				setStatus(quiet ? `有 ${state.dirtyFiles.size + state.dirtyPosts.size} 项待保存。` : `${field.label} 已更新，尚未保存。`, "warn");
+			} catch (error) {
+				console.error(error);
+				setStatus(error.message, "error");
+			}
+		}
+
+		function recordChange(file, note) {
+			if (!file || !note) return;
+			const notes = state.changeNotes.get(file) || new Set();
+			notes.add(note);
+			state.changeNotes.set(file, notes);
+		}
+
+		function fieldChangeLabel(field) {
+			const target = [field.objectName, field.path].filter(Boolean).join(".");
+			return `${field.label}${target ? ` (${target})` : ""}`;
+		}
+
+		function getObjectPath(obj, path) {
+			if (!path || !path.includes(".")) return obj?.[path];
+			return path.split(".").reduce((cur, part) => cur == null ? undefined : cur[part], obj);
+		}
+
+		function setObjectPath(obj, path, value) {
+			const parts = path.split(".");
+			let cur = obj;
+			for (let i = 0; i < parts.length - 1; i++) {
+				const part = parts[i];
+				if (!cur[part] || typeof cur[part] !== "object" || Array.isArray(cur[part])) cur[part] = {};
+				cur = cur[part];
+			}
+			cur[parts.at(-1)] = value;
+		}
+
+		function readFieldValue(field) {
+			const text = state.files.get(field.file);
+			if (text === undefined || text === "") return { ok: false, value: "" };
+			if (field.type === "html") return { ok: true, value: text };
+			if (field.type === "navLinksCode" || field.type === "navPushesCode") {
+				const part = readNavBarDynamicPart(text, field.type);
+				return part ? { ok: true, value: part.valueText } : { ok: false, value: "" };
+			}
+			if (field.objectName === "navLinksMenu") {
+				const menu = readNavLinksMenu(text);
+				if (!menu) return { ok: false, value: "" };
+				return { ok: true, value: field.path ? getObjectPath(menu.value, field.path) : menu.value };
+			}
+			const range = findValueRange(text, field.objectName, field.path);
+			if (!range) {
+				const root = findExport(text, field.objectName);
+				if (root && field.path && text[root.start] === "{") {
+					return { ok: true, value: defaultFieldValue(field), missing: true };
+				}
+				return { ok: false, value: "" };
+			}
+			return { ok: true, value: parseTs(range.valueText) };
+		}
+
+		function defaultFieldValue(field) {
+			if (field.type === "boolean") return false;
+			if (field.type === "number") return "";
+			if (field.type === "range") return field.min ?? 0;
+			if (field.type === "lines") return [];
+			if (field.type === "arrayObject" || field.type === "componentList") return [];
+			if (field.type === "json") return {};
+			if (field.type === "segmented" || field.type === "select") return "";
+			return "";
+		}
+
+		function writeFieldValue(text, field, value) {
+			const range = findValueRange(text, field.objectName, field.path);
+			if (!range) {
+				const root = findExport(text, field.objectName);
+				if (root && field.path && text[root.start] === "{") return insertMissingField(text, root, field.path.split("."), value);
+				throw new Error(`未找到 ${field.file} 中的 ${field.objectName}${field.path ? "." + field.path : ""}`);
+			}
+			return text.slice(0, range.start) + toTs(value, range.valueText) + text.slice(range.end);
+		}
+
+		function readNavBarDynamicPart(text, type) {
+			const fn = findArrowFunctionBody(text, "getDynamicNavBarConfig");
+			if (!fn) return null;
+			const linksDecl = findConstArrayInRange(text, fn.start, fn.end, "links");
+			if (!linksDecl) return null;
+			if (type === "navLinksCode") return linksDecl;
+			const returnIndex = findReturnLinksIndex(text, linksDecl.end, fn.end);
+			if (returnIndex === -1) return null;
+			return {
+				start: trimLeftIndex(text, linksDecl.end, returnIndex),
+				end: trimRightIndex(text, linksDecl.end, returnIndex),
+				valueText: text.slice(trimLeftIndex(text, linksDecl.end, returnIndex), trimRightIndex(text, linksDecl.end, returnIndex)),
+			};
+		}
+
+		function writeNavBarDynamicPart(text, type, value) {
+			const part = readNavBarDynamicPart(text, type);
+			if (!part) throw new Error(`未找到 navBarConfig.ts 中的 ${type === "navLinksCode" ? "基础 links 数组" : "动态追加逻辑"}`);
+			return text.slice(0, part.start) + value + text.slice(part.end);
+		}
+
+		function readNavLinksMenu(text) {
+			const menu = findNavLinksMenuRange(text);
+			if (!menu) return null;
+			return { ...menu, value: parseTs(menu.valueText) };
+		}
+
+		function writeNavLinksMenuValue(text, path, value) {
+			const menu = readNavLinksMenu(text);
+			if (!menu) throw new Error("未找到 navBarConfig.ts 中 url 为 /links/ 的链接菜单。");
+			const next = structuredClone(menu.value || {});
+			setObjectPath(next, path, value);
+			return text.slice(0, menu.start) + toTs(next, menu.valueText) + text.slice(menu.end);
+		}
+
+		function findNavLinksMenuRange(text) {
+			const fn = findArrowFunctionBody(text, "getDynamicNavBarConfig");
+			if (!fn) return null;
+			let index = fn.start;
+			while ((index = text.indexOf("links.push", index)) !== -1 && index < fn.end) {
+				const openParen = text.indexOf("(", index);
+				if (openParen === -1 || openParen > fn.end) return null;
+				const valueStart = skipWs(text, openParen + 1);
+				if (text[valueStart] !== "{") {
+					index = openParen + 1;
+					continue;
+				}
+				const valueEnd = findMatching(text, valueStart, "{", "}") + 1;
+				const valueText = text.slice(valueStart, valueEnd);
+				if (/url\s*:\s*["']\/links\/["']/.test(valueText)) return { start: valueStart, end: valueEnd, valueText };
+				index = valueEnd;
+			}
+			return null;
+		}
+
+		function findArrowFunctionBody(text, name) {
+			const re = new RegExp(`const\\s+${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[\\s\\S]*?=>\\s*{`, "m");
+			const m = re.exec(text);
+			if (!m) return null;
+			const start = text.indexOf("{", m.index);
+			const end = findMatching(text, start, "{", "}") + 1;
+			return { start, end, valueText: text.slice(start, end) };
+		}
+
+		function findConstArrayInRange(text, start, end, name) {
+			const slice = text.slice(start, end);
+			const re = new RegExp(`const\\s+${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^=]*=\\s*\\[`, "m");
+			const m = re.exec(slice);
+			if (!m) return null;
+			const arrayStart = start + m.index + m[0].lastIndexOf("[");
+			const arrayEnd = findMatching(text, arrayStart, "[", "]") + 1;
+			return { start: arrayStart, end: arrayEnd, valueText: text.slice(arrayStart, arrayEnd) };
+		}
+
+		function findReturnLinksIndex(text, start, end) {
+			const slice = text.slice(start, end);
+			const m = /return\s*{\s*links\s*}/m.exec(slice);
+			return m ? start + m.index : -1;
+		}
+
+		function trimLeftIndex(text, start, end) {
+			while (start < end && /\s/.test(text[start])) start++;
+			return start;
+		}
+
+		function trimRightIndex(text, start, end) {
+			while (end > start && /\s/.test(text[end - 1])) end--;
+			return end;
+		}
+
+		function renderPosts() {
+			const filtered = state.posts.filter((post) => {
+				const q = state.postQuery.toLowerCase();
+				if (!q) return true;
+				return [post.path, post.frontmatter.title, post.frontmatter.category, ...(post.frontmatter.tags || [])].join(" ").toLowerCase().includes(q);
+			});
+			const active = state.posts.find((post) => post.path === state.activePostPath) || filtered[0] || state.posts[0];
+			if (active) state.activePostPath = active.path;
+			els.content.innerHTML = `
+				<section class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">文章管理</h2>
+							<div class="subtle">读取 ${POSTS_DIR.join("/")} 下的 Markdown/MDX，支持 Frontmatter 和正文编辑。</div>
+						</div>
+						<button type="button" id="newPostBtn" class="primary">新建文章</button>
+					</div>
+					<div class="panel-body">
+						${state.postsDir ? postManagerHtml(filtered, active) : `<div class="notice">未找到 ${POSTS_DIR.join("/")}，无法管理文章。</div>`}
+					</div>
+				</section>
+			`;
+			if (!state.postsDir) return;
+			document.getElementById("newPostBtn").addEventListener("click", newPost);
+			document.getElementById("postSearch").addEventListener("input", debounce((e) => {
+				state.postQuery = e.target.value;
+				renderPosts();
+			}, 250));
+			els.content.querySelectorAll(".list-item").forEach((btn) => btn.addEventListener("click", () => {
+				state.activePostPath = btn.dataset.path;
+				renderPosts();
+			}));
+			if (active) bindPostEditor(active);
+		}
+
+		function postManagerHtml(posts, active) {
+			return `
+				<div class="split">
+					<div class="list-panel">
+						<div class="list-head">
+							<input id="postSearch" type="text" placeholder="搜索标题、路径、分类、标签" value="${esc(state.postQuery)}">
+							<div class="subtle">${posts.length} / ${state.posts.length} 篇</div>
+						</div>
+						<div class="list">
+							${posts.map((post) => postListItem(post, active)).join("") || `<div class="empty">没有匹配文章</div>`}
+						</div>
+					</div>
+					<div>${active ? postEditorHtml(active) : `<div class="empty">请选择文章</div>`}</div>
+				</div>
+			`;
+		}
+
+		function postListItem(post, active) {
+			const fm = post.frontmatter;
+			return `
+				<button type="button" class="list-item ${active && active.path === post.path ? "active" : ""}" data-path="${esc(post.path)}">
+					<div class="item-title">${esc(fm.title || post.path)}</div>
+					<div class="item-meta">${esc(post.path)}<br>${esc(fm.published || "")} ${fm.category ? " / " + esc(fm.category) : ""}</div>
+					<div class="badges">
+						${fm.draft ? `<span class="badge warn">草稿</span>` : ""}
+						${fm.pinned ? `<span class="badge">置顶</span>` : ""}
+						${state.dirtyPosts.has(post.path) ? `<span class="badge warn">待保存</span>` : ""}
+					</div>
+				</button>
+			`;
+		}
+
+		function postEditorHtml(post) {
+			const fm = post.frontmatter;
+			return `
+				<div class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">${esc(fm.title || post.path)}</h2>
+							<div class="subtle">${esc(post.path)}</div>
+						</div>
+						<a href="${esc(postFileUrl(post.path))}" target="_blank" rel="noreferrer"><button type="button">打开源文件</button></a>
+					</div>
+					<div class="panel-body">
+						<div class="grid">
+							${postInput("title", "标题", fm.title)}
+							${postInput("slug", "自定义 slug", fm.slug)}
+							${postInput("published", "发布时间", fm.published)}
+							${postInput("updated", "更新时间", fm.updated)}
+							${postInput("category", "分类", fm.category)}
+							${postInput("author", "作者", fm.author)}
+							${postInput("image", "封面图", fm.image)}
+							${postInput("lang", "语言", fm.lang || fm.language)}
+							${postInput("licenseName", "许可证名称", fm.licenseName)}
+							${postInput("licenseUrl", "许可证链接", fm.licenseUrl)}
+							${postInput("sourceLink", "来源链接", fm.sourceLink)}
+							${postInput("password", "文章密码", fm.password, "password")}
+							${postInput("passwordHint", "密码提示", fm.passwordHint)}
+							<div class="field"><label class="check"><input id="pf-draft" type="checkbox" ${fm.draft ? "checked" : ""}><span>草稿</span></label></div>
+							<div class="field"><label class="check"><input id="pf-pinned" type="checkbox" ${fm.pinned ? "checked" : ""}><span>置顶</span></label></div>
+							<div class="field"><label class="check"><input id="pf-comment" type="checkbox" ${fm.comment === false ? "" : "checked"}><span>启用评论</span></label></div>
+							<div class="field" style="grid-column:1/-1"><label for="pf-description">描述</label><textarea id="pf-description">${esc(fm.description || "")}</textarea></div>
+							<div class="field" style="grid-column:1/-1"><label for="pf-tags">标签</label><textarea id="pf-tags">${esc(linesValue(fm.tags || []))}</textarea><div class="hint">每行一个标签</div></div>
+							<div class="notice" style="grid-column:1/-1">正文内容不会在此工具中编辑；这里仅管理文章 Frontmatter。需要改正文时请继续使用你熟悉的编辑器。</div>
+						</div>
+					</div>
+				</div>
+			`;
+		}
+
+		function postInput(key, label, value, type = "text") {
+			const preview = isImageLikeKey(key) ? `<div class="inline-preview" data-post-preview="${esc(key)}">${imagePreview(value)}</div>` : "";
+			return `<div class="field"><label for="pf-${key}">${esc(label)}</label><input id="pf-${key}" data-pf="${key}" type="${type}" value="${esc(value ?? "")}">${preview}</div>`;
+		}
+
+		function postFileUrl(path) {
+			const root = `file:///E:/Blog/Firefly/src/content/${POSTS_DIR[2]}/`;
+			if (!state.root) return root + encodeURI(path);
+			return root + encodeURI(path).replace(/#/g, "%23");
+		}
+
+		function bindPostEditor(post) {
+			const update = debounce(() => {
+				const fm = post.frontmatter;
+				els.content.querySelectorAll("[data-pf]").forEach((input) => {
+					if (input.value === "") delete fm[input.dataset.pf];
+					else fm[input.dataset.pf] = input.value;
+				});
+				fm.description = document.getElementById("pf-description").value;
+				fm.tags = document.getElementById("pf-tags").value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+				fm.draft = document.getElementById("pf-draft").checked;
+				fm.pinned = document.getElementById("pf-pinned").checked;
+				fm.comment = document.getElementById("pf-comment").checked;
+				post.text = stringifyPost(post);
+				state.dirtyPosts.add(post.path);
+				recordChange(`${POSTS_DIR.join("/")}/${post.path}`, "文章 Frontmatter");
+				renderNav();
+				setStatus(`文章 ${post.path} 已更新，尚未保存。`, "warn");
+			}, 250);
+			els.content.querySelectorAll("input, textarea").forEach((el) => el.addEventListener("input", update));
+			els.content.querySelectorAll("input[data-pf]").forEach((el) => el.addEventListener("input", () => {
+				const key = el.dataset.pf;
+				if (!isImageLikeKey(key)) return;
+				const preview = el.closest(".field")?.querySelector(`[data-post-preview="${cssEscape(key)}"]`);
+				if (preview) preview.innerHTML = imagePreview(el.value);
+			}));
+			els.content.querySelectorAll("input[type=checkbox]").forEach((el) => el.addEventListener("change", update));
+		}
+
+		function normalizeParts(parts) {
+			const out = [];
+			for (const part of parts) {
+				if (!part || part === ".") continue;
+				if (part === "..") out.pop();
+				else out.push(part);
+			}
+			return out;
+		}
+
+		function previewFontLinks() {
+			const cfg = readFieldValue({ file: "fontConfig.ts", objectName: "fontConfig", path: "", type: "json" }).value;
+			if (!cfg || typeof cfg !== "object") return "";
+			const fonts = cfg.fonts || {};
+			return (cfg.selected || []).map((id) => fonts[id]?.src).filter(Boolean).map((src) => `@import url("${String(src).replaceAll('"', '\\"')}");`).join("");
+		}
+
+		function previewFontFamily() {
+			const cfg = readFieldValue({ file: "fontConfig.ts", objectName: "fontConfig", path: "", type: "json" }).value;
+			if (!cfg || typeof cfg !== "object") return `system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif`;
+			const fonts = cfg.fonts || {};
+			const selectedFamilies = (cfg.selected || []).map((id) => fonts[id]?.family).filter(Boolean).map((x) => `"${String(x).replaceAll('"', '\\"')}"`);
+			const fallback = Array.isArray(cfg.fallback) ? cfg.fallback.join(",") : `system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif`;
+			return [...selectedFamilies, fallback].join(",");
+		}
+
+		function newPost() {
+			const slug = prompt("请输入新文章文件名或目录名，例如 hello-world 或 notes/hello-world：");
+			if (!slug) return;
+			const clean = slug.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/[^A-Za-z0-9_\-/.\u4e00-\u9fff]/g, "-");
+			const path = clean.endsWith(".md") || clean.endsWith(".mdx") ? clean : `${clean}.md`;
+			if (state.posts.some((post) => post.path === path)) {
+				setStatus("该文章路径已存在。", "error");
+				return;
+			}
+			const today = new Date().toISOString().slice(0, 10);
+			const post = parsePost(path, `---\ntitle: 新文章\npublished: ${today}\ndescription: \"\"\ntags: []\ncategory: 未分类\ndraft: true\n---\n\n`);
+			state.posts.unshift(post);
+			state.activePostPath = path;
+			state.dirtyPosts.add(path);
+			renderNav();
+			renderPosts();
+			setStatus(`已创建 ${path}，保存后写入磁盘。`, "warn");
+		}
+
+		function parsePost(path, text) {
+			const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+			const frontmatter = match ? parseYaml(match[1]) : {};
+			const body = match ? text.slice(match[0].length) : text;
+			return { path, text, frontmatter, body, originalText: text };
+		}
+
+		function parseYaml(yaml) {
+			const obj = {};
+			const lines = yaml.split(/\r?\n/);
+			for (const line of lines) {
+				if (!line.trim() || line.trim().startsWith("#")) continue;
+				const m = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+				if (!m) continue;
+				obj[m[1]] = parseYamlValue(m[2]);
+			}
+			return obj;
+		}
+
+		function parseYamlValue(value) {
+			const v = value.trim();
+			if (v === "true") return true;
+			if (v === "false") return false;
+			if (v === "null") return null;
+			if (/^\[.*\]$/.test(v)) {
+				try { return JSON.parse(v.replace(/'/g, '"')); } catch { return v.slice(1, -1).split(",").map((x) => x.trim()).filter(Boolean); }
+			}
+			if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+				try { return JSON.parse(v); } catch { return v.slice(1, -1); }
+			}
+			return v;
+		}
+
+		function stringifyPost(post) {
+			const order = ["title", "published", "updated", "pinned", "description", "image", "tags", "category", "draft", "comment", "slug", "lang", "language", "licenseName", "licenseUrl", "author", "sourceLink", "password", "passwordHint"];
+			const keys = [...order.filter((k) => k in post.frontmatter), ...Object.keys(post.frontmatter).filter((k) => !order.includes(k))];
+			const yaml = keys.map((key) => `${key}: ${yamlValue(post.frontmatter[key])}`).join("\n");
+			return `---\n${yaml}\n---\n\n${post.body.replace(/^\n+/, "")}`;
+		}
+
+		function yamlValue(value) {
+			if (Array.isArray(value)) return `[${value.map((x) => JSON.stringify(String(x))).join(", ")}]`;
+			if (typeof value === "boolean") return String(value);
+			if (value === null || value === undefined) return "";
+			const s = String(value);
+			if (s === "" || /[:#\[\]{},&*!|>'"%@`]/.test(s) || /^\s|\s$/.test(s)) return JSON.stringify(s);
+			return s;
+		}
+
+		function renderBackups() {
+			els.content.innerHTML = `
+				<section class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">备份恢复</h2>
+							<div class="subtle">每次保存都会创建一个会话备份，可以整体恢复配置和文章文件。</div>
+						</div>
+						<div class="row-actions">
+							<button type="button" id="selectAllBackups">全选</button>
+							<button type="button" id="clearBackupSelection">取消选择</button>
+							<button type="button" class="danger" id="deleteSelectedBackups">删除选中</button>
+							<button type="button" id="refreshBackups">刷新备份</button>
+						</div>
+					</div>
+					<div class="panel-body">
+						${state.backupSessions.length ? state.backupSessions.map(backupHtml).join("") : `<div class="empty">还没有新版本备份。旧版本备份可能位于 src/config/.firefly-config-manager-backups。</div>`}
+					</div>
+				</section>
+			`;
+			document.getElementById("refreshBackups").addEventListener("click", async () => {
+				await loadBackupSessions();
+				renderBackups();
+			});
+			document.getElementById("selectAllBackups").addEventListener("click", () => {
+				els.content.querySelectorAll("[data-backup-select]").forEach((input) => input.checked = true);
+				updateBackupSelectionStatus();
+			});
+			document.getElementById("clearBackupSelection").addEventListener("click", () => {
+				els.content.querySelectorAll("[data-backup-select]").forEach((input) => input.checked = false);
+				updateBackupSelectionStatus();
+			});
+			document.getElementById("deleteSelectedBackups").addEventListener("click", deleteSelectedBackups);
+			els.content.querySelectorAll("[data-backup-select]").forEach((input) => input.addEventListener("change", updateBackupSelectionStatus));
+			els.content.querySelectorAll("[data-restore]").forEach((btn) => btn.addEventListener("click", () => restoreBackup(btn.dataset.restore)));
+			els.content.querySelectorAll("[data-delete-backup]").forEach((btn) => btn.addEventListener("click", () => deleteBackup(btn.dataset.deleteBackup)));
+			els.content.querySelectorAll("[data-rename-backup]").forEach((btn) => btn.addEventListener("click", () => renameBackup(btn.dataset.renameBackup)));
+			updateBackupSelectionStatus();
+		}
+
+		function backupHtml(session) {
+			return `
+				<div class="panel">
+					<div class="panel-body">
+						<label class="check"><input type="checkbox" data-backup-select="${esc(session.id)}"><span class="item-title">${esc(session.name || session.id)}</span></label>
+						<div class="item-meta">${esc(session.createdAt || "")} / ${session.files.length} 个文件 / ${esc(session.reason || "保存前备份")}</div>
+						${session.summary ? `<div class="hint">${esc(session.summary)}</div>` : ""}
+						${backupChangesHtml(session)}
+						<div class="row-actions">
+							<input data-backup-name="${esc(session.id)}" type="text" value="${esc(session.name || "")}" placeholder="备份显示名称" style="max-width:260px">
+							<button type="button" data-rename-backup="${esc(session.id)}">重命名</button>
+							<button type="button" class="danger" data-delete-backup="${esc(session.id)}">删除备份</button>
+							<button type="button" class="danger" data-restore="${esc(session.id)}">恢复此备份</button>
+						</div>
+					</div>
+				</div>
+			`;
+		}
+
+		function selectedBackupIds() {
+			return [...els.content.querySelectorAll("[data-backup-select]:checked")].map((input) => input.dataset.backupSelect);
+		}
+
+		function updateBackupSelectionStatus() {
+			const count = selectedBackupIds().length;
+			const btn = document.getElementById("deleteSelectedBackups");
+			if (btn) btn.textContent = count ? `删除选中 (${count})` : "删除选中";
+		}
+
+		function backupChangesHtml(session) {
+			const items = (session.files || [])
+				.filter((file) => Array.isArray(file.changes) && file.changes.length)
+				.map((file) => `<li><strong>${esc(file.path)}</strong>：${esc(file.changes.join("、"))}</li>`)
+				.join("");
+			return items ? `<ul class="hint backup-changes">${items}</ul>` : "";
+		}
+
+		async function loadBackupSessions() {
+			state.backupSessions = [];
+			if (!state.backupDir) return;
+			for await (const [name, handle] of state.backupDir.entries()) {
+				if (handle.kind !== "file" || !name.endsWith(".json")) continue;
+				try {
+					const data = JSON.parse(await (await handle.getFile()).text());
+					state.backupSessions.push(data);
+				} catch { }
+			}
+			state.backupSessions.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+		}
+
+		async function restoreBackup(id) {
+			const session = state.backupSessions.find((item) => item.id === id);
+			if (!session) return;
+			if (!confirm(`确定恢复备份 ${id}？当前文件会先创建一个恢复前备份。`)) return;
+			await createBackup("restore-before");
+			for (const file of session.files) {
+				const backupText = await readNestedFile(state.backupDir, [file.backupPath]);
+				if (file.existed === false) {
+					await removeNestedFile(state.root, file.path.split("/")).catch(() => { });
+				} else {
+					await writeNestedFile(state.root, file.path.split("/"), backupText);
+				}
+			}
+			await reloadAll();
+			renderNav();
+			render();
+			setStatus(`已恢复备份 ${id}。`, "ok");
+		}
+
+		async function renameBackup(id) {
+			const session = state.backupSessions.find((item) => item.id === id);
+			if (!session) return;
+			const input = els.content.querySelector(`[data-backup-name="${cssEscape(id)}"]`);
+			session.name = input?.value?.trim() || "";
+			await writeFile(state.backupDir, `${id}.json`, JSON.stringify(session, null, 2));
+			renderBackups();
+			setStatus(`已更新备份 ${id} 的名称。`, "ok");
+		}
+
+		async function deleteBackup(id) {
+			const session = state.backupSessions.find((item) => item.id === id);
+			if (!session) return;
+			if (!confirm(`确定删除备份 ${session.name || id}？此操作会删除 manifest 和对应 .bak 文件。`)) return;
+			await deleteBackupSession(session);
+			renderBackups();
+			setStatus(`已删除备份 ${id}。`, "ok");
+		}
+
+		async function deleteSelectedBackups() {
+			const ids = selectedBackupIds();
+			if (!ids.length) {
+				setStatus("请先选择要删除的备份。", "warn");
+				return;
+			}
+			if (!confirm(`确定删除选中的 ${ids.length} 个备份？此操作会删除 manifest 和对应 .bak 文件。`)) return;
+			const sessions = state.backupSessions.filter((item) => ids.includes(item.id));
+			await Promise.all(sessions.map(deleteBackupSession));
+			renderBackups();
+			setStatus(`已删除 ${sessions.length} 个备份。`, "ok");
+		}
+
+		async function deleteBackupSession(session) {
+			await Promise.all((session.files || [])
+				.filter((file) => file.backupPath)
+				.map((file) => removeFile(state.backupDir, file.backupPath).catch(() => { })));
+			await removeFile(state.backupDir, `${session.id}.json`).catch(() => { });
+			state.backupSessions = state.backupSessions.filter((item) => item.id !== session.id);
+		}
+
+		function renderSource() {
+			const files = [...state.files.keys()].filter((file) => state.files.get(file) !== "");
+			if (!files.includes(state.activeSourceFile)) state.activeSourceFile = files[0] || "siteConfig.ts";
+			els.content.innerHTML = `
+				<section class="panel">
+					<div class="panel-header">
+						<div>
+							<h2 class="panel-title">源码编辑</h2>
+							<div class="subtle">用于修改动态导航函数、复杂配置或表单未覆盖的 TypeScript。</div>
+						</div>
+					</div>
+					<div class="panel-body">
+						<div class="notice">直接编辑源码时请保持 TypeScript 语法有效。保存前会备份。</div>
+						<div class="tabs">${files.map((file) => `<button type="button" data-file="${esc(file)}" class="${file === state.activeSourceFile ? "active" : ""}">${esc(file)}${state.dirtyFiles.has(file) ? " *" : ""}</button>`).join("")}</div>
+						<textarea id="sourceText" class="code-area">${esc(state.files.get(state.activeSourceFile) || "")}</textarea>
+					</div>
+				</section>
+			`;
+			els.content.querySelectorAll(".tabs button").forEach((btn) => btn.addEventListener("click", () => {
+				state.activeSourceFile = btn.dataset.file;
+				renderSource();
+			}));
+			document.getElementById("sourceText").addEventListener("input", debounce((e) => {
+				state.files.set(state.activeSourceFile, e.target.value);
+				state.dirtyFiles.add(state.activeSourceFile);
+				recordChange(state.activeSourceFile, "源码编辑");
+				renderNav();
+				setStatus(`${state.activeSourceFile} 已更新，尚未保存。`, "warn");
+			}, 250));
+		}
+
+		async function saveAll() {
+			if (!state.dirtyFiles.size && !state.dirtyPosts.size) {
+				setStatus("没有需要保存的修改。", "ok");
+				return;
+			}
+			try {
+				els.saveBtn.disabled = true;
+				state.nextBackupName = els.backupName?.value?.trim() || "";
+				await createBackup("save-before");
+				await Promise.all([...state.dirtyFiles].map((file) => writeFile(state.configDir, file, state.files.get(file))));
+				await Promise.all([...state.dirtyPosts].map(async (path) => {
+					const post = state.posts.find((p) => p.path === path);
+					if (post) await writeNestedFile(state.postsDir, path.split("/"), stringifyPost(post));
+				}));
+				const saved = state.dirtyFiles.size + state.dirtyPosts.size;
+				state.dirtyFiles.clear();
+				state.dirtyPosts.clear();
+				state.changeNotes.clear();
+				state.nextBackupName = "";
+				if (els.backupName) els.backupName.value = "";
+				applyThemeHueFromConfig();
+				renderNav();
+				render();
+				setStatus(`已保存 ${saved} 项修改，并创建备份。`, "ok");
+			} catch (error) {
+				console.error(error);
+				setStatus(`保存失败：${error.message}`, "error");
+			} finally {
+				els.saveBtn.disabled = false;
+			}
+		}
+
+		async function createBackup(reason) {
+			const backupName = state.nextBackupName || "";
+			const slug = safeBackupSlug(backupName);
+			const id = `${stamp()}${slug ? `-${slug}` : ""}`;
+			const configBackups = [...state.dirtyFiles].map(async (file) => {
+				const path = `src/config/${file}`;
+				let existed = true;
+				const current = await readFile(state.configDir, file).catch(() => {
+					existed = false;
+					return "";
+				});
+				const backupPath = `${id}__${path.replace(/[\\/]/g, "__")}.bak`;
+				await writeFile(state.backupDir, backupPath, current);
+				return { path, backupPath, existed, changes: getChangeNotes(file) };
+			});
+			const postBackups = [...state.dirtyPosts].map(async (path) => {
+				let existed = true;
+				const current = await readNestedFile(state.postsDir, path.split("/")).catch(() => {
+					existed = false;
+					return "";
+				});
+				const fullPath = `${POSTS_DIR.join("/")}/${path}`;
+				const backupPath = `${id}__${fullPath.replace(/[\\/]/g, "__")}.bak`;
+				await writeFile(state.backupDir, backupPath, current);
+				return { path: fullPath, backupPath, existed, changes: getChangeNotes(fullPath) };
+			});
+			const files = await Promise.all([...configBackups, ...postBackups]);
+			if (files.length) {
+				const manifest = { id, name: backupName, createdAt: new Date().toISOString(), reason, summary: backupSummary(files), files };
+				await writeFile(state.backupDir, `${id}.json`, JSON.stringify(manifest, null, 2));
+				state.backupSessions.unshift(manifest);
+			}
+		}
+
+		function safeBackupSlug(name) {
+			return String(name || "")
+				.trim()
+				.replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+				.replace(/\s+/g, "-")
+				.replace(/-+/g, "-")
+				.replace(/^-|-$/g, "")
+				.slice(0, 36);
+		}
+
+		function getChangeNotes(path) {
+			return [...(state.changeNotes.get(path) || [])];
+		}
+
+		function backupSummary(files) {
+			const notes = files.flatMap((file) => (file.changes || []).map((change) => `${file.path}: ${change}`));
+			if (!notes.length) return "保存前备份：未记录具体字段，可能来自旧版本或直接文件变更。";
+			const shown = notes.slice(0, 8).join("；");
+			const more = notes.length > 8 ? `；另有 ${notes.length - 8} 项` : "";
+			return `保存前备份，涉及 ${files.length} 个文件：${shown}${more}`;
+		}
+
+		function stamp() {
+			const d = new Date();
+			const p = (n) => String(n).padStart(2, "0");
+			return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+		}
+
+		function findValueRange(text, objectName, path) {
+			const root = findExport(text, objectName);
+			if (!root) return null;
+			if (!path) return root;
+			let range = root;
+			for (const part of path.split(".")) {
+				range = findProperty(text, range.start, range.end, part);
+				if (!range) return null;
+			}
+			return range;
+		}
+
+		function insertMissingField(text, root, parts, value) {
+			if (!parts.length) return text;
+			const [key, ...rest] = parts;
+			if (!rest.length) return insertProperty(text, root, key, value);
+			const child = findProperty(text, root.start, root.end, key);
+			if (child) {
+				if (text[child.start] === "{") return insertMissingField(text, child, rest, value);
+				const replacement = buildNestedObjectWithPrevious(rest, value, parseTs(child.valueText));
+				return text.slice(0, child.start) + toTs(replacement) + text.slice(child.end);
+			}
+			const nested = buildNestedObject(rest, value);
+			return insertProperty(text, root, key, nested);
+		}
+
+		function insertProperty(text, objectRange, key, value) {
+			if (text[objectRange.start] !== "{") throw new Error("只能向对象配置中插入缺失字段。");
+			const insertAt = findObjectInsertPosition(text, objectRange.start, objectRange.end);
+			const indent = detectChildIndent(text, objectRange.start, objectRange.end);
+			const needsComma = needsCommaBeforeInsert(text, objectRange.start, insertAt);
+			const prefix = `${needsComma ? "," : ""}\n${indent}`;
+			const suffix = text.slice(insertAt, objectRange.end).trim() ? "" : "";
+			const prop = `${formatPropertyKey(key)}: ${toTs(value)}`;
+			return text.slice(0, insertAt) + prefix + prop + suffix + text.slice(insertAt);
+		}
+
+		function buildNestedObject(parts, value) {
+			return parts.reduceRight((inner, key) => ({ [key]: inner }), value);
+		}
+
+		function buildNestedObjectWithPrevious(parts, value, previous) {
+			if (parts.length === 1 && ["desktop", "mobile"].includes(parts[0]) && typeof previous === "boolean") {
+				return { desktop: parts[0] === "desktop" ? value : previous, mobile: parts[0] === "mobile" ? value : previous };
+			}
+			return buildNestedObject(parts, value);
+		}
+
+		function findObjectInsertPosition(text, start, end) {
+			let i = end - 1;
+			while (i > start && /\s/.test(text[i - 1])) i--;
+			return i;
+		}
+
+		function detectChildIndent(text, start, end) {
+			const afterOpen = text.slice(start + 1, end);
+			const m = /\n([ \t]+)[A-Za-z_$"']/.exec(afterOpen);
+			if (m) return m[1];
+			const before = text.slice(0, start);
+			const lineStart = before.lastIndexOf("\n") + 1;
+			const parentIndent = (before.slice(lineStart).match(/^[ \t]*/) || [""])[0];
+			return `${parentIndent}\t`;
+		}
+
+		function needsCommaBeforeInsert(text, start, insertAt) {
+			let i = insertAt - 1;
+			while (i > start && /\s/.test(text[i])) i--;
+			return i > start && text[i] !== "{" && text[i] !== ",";
+		}
+
+		function formatPropertyKey(key) {
+			return /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+		}
+
+		function findExport(text, objectName) {
+			if (!objectName) return null;
+			const re = new RegExp(`(?:export\\s+)?const\\s+${objectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^=]*=`, "m");
+			const m = re.exec(text);
+			if (!m) return null;
+			const start = skipWs(text, m.index + m[0].length);
+			const ch = text[start];
+			if (ch === "{" || ch === "[") {
+				const end = findMatching(text, start, ch, ch === "{" ? "}" : "]");
+				return { start, end: end + 1, valueText: text.slice(start, end + 1) };
+			}
+			const end = findStatementEnd(text, start);
+			return { start, end, valueText: text.slice(start, end).trim() };
+		}
+
+		function findProperty(text, objectStart, objectEnd, key) {
+			if (text[objectStart] !== "{") return null;
+			let i = objectStart + 1;
+			while (i < objectEnd - 1) {
+				i = skipWs(text, i);
+				const nameStart = i;
+				let name = "";
+				if (text[i] === "'" || text[i] === '"') {
+					const s = readString(text, i); name = s.value; i = s.end;
+				} else {
+					const m = /^[A-Za-z_$][\w$]*/.exec(text.slice(i));
+					if (!m) { i++; continue; }
+					name = m[0]; i += name.length;
+				}
+				i = skipWs(text, i);
+				if (text[i] !== ":") { i = nameStart + 1; continue; }
+				const valStart = skipWs(text, i + 1);
+				const valEnd = trimRight(text, valStart, findValueEnd(text, valStart, objectEnd));
+				if (name === key) return { start: valStart, end: valEnd, valueText: text.slice(valStart, valEnd) };
+				i = valEnd + (text[valEnd] === "," ? 1 : 0);
+			}
+			return null;
+		}
+
+		function findValueEnd(text, start, limit) {
+			let i = start, stack = [];
+			while (i < limit) {
+				const ch = text[i];
+				if (ch === "'" || ch === '"' || ch === "`") { i = skipString(text, i); continue; }
+				if (ch === "/" && text[i + 1] === "/") { i = skipLine(text, i); continue; }
+				if (ch === "/" && text[i + 1] === "*") { i = skipBlock(text, i); continue; }
+				if ("{[(".includes(ch)) stack.push(ch);
+				else if ("}])".includes(ch)) { if (!stack.length) return i; stack.pop(); }
+				else if (ch === "," && !stack.length) return i;
+				i++;
+			}
+			return limit;
+		}
+
+		function findMatching(text, start, open, close) {
+			let depth = 0;
+			for (let i = start; i < text.length; i++) {
+				const ch = text[i];
+				if (ch === "'" || ch === '"' || ch === "`") { i = skipString(text, i) - 1; continue; }
+				if (ch === "/" && text[i + 1] === "/") { i = skipLine(text, i) - 1; continue; }
+				if (ch === "/" && text[i + 1] === "*") { i = skipBlock(text, i) - 1; continue; }
+				if (ch === open) depth++;
+				if (ch === close && --depth === 0) return i;
+			}
+			throw new Error(`找不到 ${open}${close} 匹配结束符`);
+		}
+
+		function findStatementEnd(text, start) {
+			let i = start, stack = [];
+			while (i < text.length) {
+				const ch = text[i];
+				if (ch === "'" || ch === '"' || ch === "`") { i = skipString(text, i); continue; }
+				if (ch === "/" && text[i + 1] === "/") { i = skipLine(text, i); continue; }
+				if (ch === "/" && text[i + 1] === "*") { i = skipBlock(text, i); continue; }
+				if ("{[(".includes(ch)) stack.push(ch);
+				else if ("}])".includes(ch)) stack.pop();
+				else if (ch === ";" && !stack.length) return i;
+				i++;
+			}
+			return i;
+		}
+
+		function skipWs(text, i) {
+			while (i < text.length) {
+				if (/\s/.test(text[i])) { i++; continue; }
+				if (text[i] === "/" && text[i + 1] === "/") { i = skipLine(text, i); continue; }
+				if (text[i] === "/" && text[i + 1] === "*") { i = skipBlock(text, i); continue; }
+				break;
+			}
+			return i;
+		}
+
+		function skipLine(text, i) {
+			const end = text.indexOf("\n", i + 2);
+			return end === -1 ? text.length : end + 1;
+		}
+
+		function skipBlock(text, i) {
+			const end = text.indexOf("*/", i + 2);
+			return end === -1 ? text.length : end + 2;
+		}
+
+		function skipString(text, i) {
+			const quote = text[i++];
+			while (i < text.length) {
+				if (text[i] === "\\") { i += 2; continue; }
+				if (text[i] === quote) return i + 1;
+				i++;
+			}
+			return i;
+		}
+
+		function readString(text, i) {
+			const end = skipString(text, i);
+			const raw = text.slice(i, end);
+			try { return { value: Function(`"use strict";return(${raw})`)(), end }; }
+			catch { return { value: raw.slice(1, -1), end }; }
+		}
+
+		function trimRight(text, start, end) {
+			while (end > start && /\s/.test(text[end - 1])) end--;
+			return end;
+		}
+
+		function parseTs(src) {
+			const s = sanitizeTsExpression(src.trim());
+			if (s === "true") return true;
+			if (s === "false") return false;
+			if (s === "null") return null;
+			if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+			try { return Function(`"use strict";return(${s})`)(); }
+			catch { return s; }
+		}
+
+		function sanitizeTsExpression(src) {
+			return src
+				.replace(/\s+as\s+const\b/g, "")
+				.replace(/\s+as\s+[A-Za-z_$][\w$<>,\s|.[\]"']*/g, "")
+				.replace(/ satisfies [A-Za-z_$][\w$<>,\s|.[\]"']*/g, "");
+		}
+
+		function parseLoose(src) {
+			try { return JSON.parse(src); }
+			catch { return Function(`"use strict";return(${sanitizeTsExpression(src)})`)(); }
+		}
+
+		function toTs(value, previous = "") {
+			if (value && typeof value === "object" && "__raw" in value) return value.__raw;
+			if (typeof value === "string") return JSON.stringify(value);
+			if (typeof value === "number" || typeof value === "boolean") return String(value);
+			if (value === null) return "null";
+			return JSON.stringify(value, null, "\t").replace(/"([A-Za-z_$][\w$]*)":/g, "$1:");
+		}
+
+		function linesValue(value) {
+			if (Array.isArray(value)) return value.join("\n");
+			return value ?? "";
+		}
+
+		function jsonValue(value) {
+			if (typeof value === "string" && /^[\[{]/.test(value.trim())) return value;
+			return JSON.stringify(value, null, "\t");
+		}
+
+		function debounce(fn, ms) {
+			let timer;
+			return (...args) => {
+				clearTimeout(timer);
+				timer = setTimeout(() => fn(...args), ms);
+			};
+		}
+
+		function esc(value) {
+			return String(value ?? "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;");
+		}
+
+		els.pickRepo.addEventListener("click", pickRepo);
+		els.sidebarToggle.addEventListener("click", () => {
+			document.body.classList.toggle("sidebar-collapsed");
+			const collapsed = document.body.classList.contains("sidebar-collapsed");
+			els.sidebarToggle.textContent = collapsed ? "›" : "‹";
+			els.sidebarToggle.title = collapsed ? "展开侧边栏" : "折叠侧边栏";
+		});
+		els.reloadBtn.addEventListener("click", async () => {
+			if (!state.root) return;
+			await reloadAll();
+			renderNav();
+			render();
+		});
+		els.saveBtn.addEventListener("click", saveAll);
+		if (!isSupported()) {
+			setStatus("当前浏览器不支持目录读写，请使用最新版 Chrome 或 Edge。", "error");
+		} else {
+			restoreLastRepo();
+		}
+	</script>
+</body>
+
+</html>

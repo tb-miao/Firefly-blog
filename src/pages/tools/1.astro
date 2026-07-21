@@ -1,0 +1,381 @@
+---
+import { Icon } from "astro-icon/components";
+import {
+	toolListPageConfig,
+	getEnabledTools,
+	getAllToolTags,
+} from "@/config/toollist";
+import { toolsGistId, toolsFileName } from "@/utils/tools-gist";
+import { externalMomentsConfig } from "@/config/externalMomentsConfig";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+
+const tools = getEnabledTools();
+const allTags = getAllToolTags();
+const title = toolListPageConfig.title;
+const description = toolListPageConfig.description;
+
+const gistConfig = {
+	gistId: toolsGistId,
+	fileName: toolsFileName,
+	token: externalMomentsConfig.githubToken || "",
+	enable: externalMomentsConfig.enable,
+};
+---
+
+<script slot="head" is:inline>
+	// 标签筛选功能 - 使用自定义元素（在head中定义，确保DOM渲染前可用）
+	if (!customElements.get("tool-filter")) {
+		class ToolFilter extends HTMLElement {
+			constructor() {
+				super();
+				this._activeButton = null;
+			}
+
+			connectedCallback() {
+				this.addEventListener("click", this.handleClick.bind(this));
+				this._activeButton = this.querySelector("button");
+			}
+
+			disconnectedCallback() {
+				this.removeEventListener("click", this.handleClick.bind(this));
+			}
+
+			_resetButtonStyle(btn) {
+				btn.classList.remove("bg-(--primary)", "text-white", "hover:opacity-90");
+				btn.classList.add("bg-(--btn-regular-bg)", "text-(--btn-content)", "hover:bg-(--btn-regular-bg-hover)");
+			}
+
+			_setActiveButtonStyle(btn) {
+				btn.classList.remove("bg-(--btn-regular-bg)", "text-(--btn-content)", "hover:bg-(--btn-regular-bg-hover)");
+				btn.classList.add("bg-(--primary)", "text-white", "hover:opacity-90");
+			}
+
+			handleClick(e) {
+				const target = e.target;
+				const button = target.closest("button");
+				if (!button || button === this._activeButton) return;
+
+				const selectedTag = button.dataset.tag;
+				window.currentSelectedTag = selectedTag;
+
+				if (this._activeButton) {
+					this._resetButtonStyle(this._activeButton);
+				}
+
+				this._setActiveButtonStyle(button);
+				this._activeButton = button;
+
+				window.applyFilters();
+			}
+		}
+		customElements.define("tool-filter", ToolFilter);
+	}
+
+	// 搜索功能 - 使用全局函数，在页面加载时调用
+	window.initToolSearch = function() {
+		var searchInput = document.getElementById("tool-search-input");
+		var clearBtn = document.getElementById("clear-search-btn");
+		var resultsCount = document.getElementById("results-count");
+		var resultsContainer = document.getElementById("search-results-count");
+		var toolsGrid = document.querySelector(".tools-grid");
+		var searchEmptyState = document.getElementById("search-empty-state");
+
+		if (!searchInput) return;
+
+		window.currentSelectedTag = window.currentSelectedTag || "all";
+		window.currentSearchTerm = window.currentSearchTerm || "";
+
+		function getToolCards() {
+			return document.querySelectorAll(".tool-card");
+		}
+
+		window.applyFilters = function() {
+			var searchTerm = (window.currentSearchTerm || "").toLowerCase().trim();
+			var selectedTag = window.currentSelectedTag || "all";
+			var visibleCount = 0;
+			var toolCards = getToolCards();
+
+			if (searchTerm && clearBtn) {
+				clearBtn.style.display = "block";
+				setTimeout(function() { clearBtn.classList.add("opacity-100"); }, 10);
+			} else if (clearBtn) {
+				clearBtn.classList.remove("opacity-100");
+				setTimeout(function() { clearBtn.style.display = "none"; }, 200);
+			}
+
+			toolCards.forEach(function(card) {
+				var title = (card.dataset.title || "").toLowerCase();
+				var description = (card.dataset.description || "").toLowerCase();
+				var tags = (card.dataset.tags || "").toLowerCase();
+				var categories = (card.dataset.categories || "").toLowerCase();
+				var cardTags = (card.dataset.tags || "").split(",");
+				var cardCategories = (card.dataset.categories || "").split(",");
+
+				var matchesSearch = !searchTerm ||
+					title.includes(searchTerm) ||
+					description.includes(searchTerm) ||
+					tags.includes(searchTerm) ||
+					categories.includes(searchTerm);
+
+				var matchesTag = selectedTag === "all" ||
+					(selectedTag && (cardTags.includes(selectedTag) || cardCategories.includes(selectedTag)));
+
+				if (matchesSearch && matchesTag) {
+					card.style.display = "";
+					visibleCount++;
+				} else {
+					card.style.display = "none";
+				}
+			});
+
+			if (searchTerm) {
+				if (resultsCount) resultsCount.textContent = String(visibleCount);
+				if (resultsContainer) resultsContainer.classList.add("opacity-100");
+			} else {
+				if (resultsContainer) resultsContainer.classList.remove("opacity-100");
+			}
+
+			if (searchTerm && visibleCount === 0) {
+				if (searchEmptyState) searchEmptyState.classList.remove("hidden");
+				if (toolsGrid) toolsGrid.style.display = "none";
+			} else {
+				if (searchEmptyState) searchEmptyState.classList.add("hidden");
+				if (toolsGrid) toolsGrid.style.display = "";
+			}
+		};
+
+		function performSearch(query) {
+			window.currentSearchTerm = query;
+			window.applyFilters();
+		}
+
+		var debounceTimer;
+		function handleSearchInput(e) {
+			clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(function() {
+				performSearch(e.target.value);
+			}, 150);
+		}
+
+		function handleClearClick() {
+			searchInput.value = "";
+			performSearch("");
+			searchInput.focus();
+		}
+
+		searchInput.removeEventListener("input", handleSearchInput);
+		if (clearBtn) {
+			clearBtn.removeEventListener("click", handleClearClick);
+		}
+
+		searchInput.addEventListener("input", handleSearchInput);
+		if (clearBtn) {
+			clearBtn.addEventListener("click", handleClearClick);
+		}
+	};
+
+	document.addEventListener('DOMContentLoaded', function() {
+		window.initToolSearch();
+	});
+
+	function setupSwupHooks() {
+		if (window._swupHooksSetup) return;
+		window._swupHooksSetup = true;
+
+		function swupHandler() {
+			window.initToolSearch();
+		}
+
+		if (window.swup) {
+			window.swup.hooks.on("content:replace", swupHandler);
+			window.swup.hooks.on("page:view", swupHandler);
+		} else {
+			document.addEventListener("swup:enable", function() {
+				window.swup.hooks.on("content:replace", swupHandler);
+				window.swup.hooks.on("page:view", swupHandler);
+			});
+		}
+	}
+	setupSwupHooks();
+</script>
+
+<script id="tools-config" is:inline data-swup-ignore-script
+	data-gist={gistConfig.gistId}
+	data-file={gistConfig.fileName}
+	data-token={gistConfig.token}
+	data-enable={gistConfig.enable}>
+</script>
+
+
+<script>
+	import "@/data/tools.ts";
+</script>
+
+<MainGridLayout title={title} description={description}>
+	<div class="flex w-full rounded-(--radius-large) overflow-hidden relative min-h-32">
+		<div class="card-base z-10 px-4 md:px-6 lg:px-9 py-4 md:py-6 relative w-full">
+			<!-- 页面标题和描述 -->
+			<div class="mb-4 md:mb-6">
+				<div class="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+					<a
+						href="/tools/"
+						class="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-(--btn-regular-bg) text-(--btn-content) flex items-center justify-center hover:bg-(--primary) hover:text-white transition-all duration-200 animate-in fade-in slide-in-from-left-2 duration-500 cursor-pointer"
+						title="返回"
+					>
+						<Icon name="material-symbols:arrow-back-rounded" class="text-[1.25rem] md:text-[1.5rem]" />
+					</a>
+					<div
+						class="h-7 w-7 md:h-8 md:w-8 rounded-lg bg-(--primary) flex items-center justify-center text-white dark:text-black/70 animate-in fade-in slide-in-from-left-2 duration-500"
+					>
+						<Icon name="material-symbols:build" class="text-[1.25rem] md:text-[1.5rem]" />
+					</div>
+					<div class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 animate-in fade-in slide-in-from-right-2 duration-500">
+						{title}
+					</div>
+				</div>
+				{description && (
+					<p class="text-sm md:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-500 delay-150">
+						{description}
+					</p>
+					<p class="text-sm md:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-500 delay-150">
+						遇到问题，请在【留言板】或提交[Issues](https://github.com/tb-miao/Firefly-blog/issues)
+					</p>
+				)}
+			</div>
+
+			<!-- 搜索框 -->
+			<div class="relative mb-4 md:mb-6 animate-in fade-in duration-500 delay-150">
+				<div class="relative">
+					<Icon
+						name="material-symbols:search"
+						class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm md:text-base"
+					/>
+					<input
+						type="text"
+						id="tool-search-input"
+						placeholder="搜索工具名称、描述或标签..."
+						class="w-full pl-9 pr-12 py-2.5 md:py-3 rounded-xl bg-(--card-bg) border border-(--line-divider) text-sm md:text-base text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:border-(--primary) focus:ring-2 focus:ring-(--primary)/20 transition-all duration-300"
+					/>
+					<button
+						id="clear-search-btn"
+						class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 opacity-0 transition-opacity duration-200"
+						style="display: none;"
+					>
+						<Icon name="material-symbols:close" class="text-sm md:text-base" />
+					</button>
+				</div>
+				<!-- 搜索结果统计 -->
+				<div id="search-results-count" class="mt-2 text-xs text-neutral-500 dark:text-neutral-400 opacity-0 transition-opacity duration-200">
+					找到 <span id="results-count">0</span> 个工具
+				</div>
+			</div>
+
+			<!-- 标签筛选 -->
+			{allTags.length > 0 && (
+				<tool-filter class="flex flex-wrap gap-1.5 md:gap-2 mb-4 md:mb-6">
+					<button
+						data-tag="all"
+						class="px-2.5 md:px-3 py-1 md:py-1.5 rounded-lg bg-(--primary) text-white hover:opacity-90 transition-all duration-200 text-xs md:text-sm font-medium whitespace-nowrap"
+					>
+						全部
+					</button>
+					{allTags.map((tag) => (
+						<button
+							data-tag={tag}
+							class="px-2.5 md:px-3 py-1 md:py-1.5 rounded-lg bg-(--btn-regular-bg) text-(--btn-content) hover:bg-(--btn-regular-bg-hover) transition-all duration-200 text-xs md:text-sm font-medium whitespace-nowrap"
+						>
+							{tag}
+						</button>
+					))}
+				</tool-filter>
+			)}
+
+			<!-- 工具网格 -->
+			<div class="tools-grid my-4 md:my-6"></div>
+
+			<!-- 搜索无结果状态 -->
+			<div id="search-empty-state" class="flex flex-col items-center justify-center py-8 md:py-12 text-center hidden">
+				<div class="h-12 w-12 md:h-16 md:w-16 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-3 md:mb-4">
+					<Icon
+						name="material-symbols:search-off"
+						class="text-[1.5rem] md:text-[2rem] text-neutral-400"
+					/>
+				</div>
+				<h3 class="text-base md:text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1 md:mb-2">
+					未找到工具
+				</h3>
+				<p class="text-sm md:text-base text-neutral-600 dark:text-neutral-400">
+					尝试使用其他关键词搜索
+				</p>
+			</div>
+
+			<!-- 空状态 -->
+			<div class="empty-state-container flex flex-col items-center justify-center py-8 md:py-12 text-center">
+				<div class="h-12 w-12 md:h-16 md:w-16 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-3 md:mb-4 animate-pulse">
+					<Icon
+						name="material-symbols:build-outline"
+						class="text-[1.5rem] md:text-[2rem] text-neutral-400"
+					/>
+				</div>
+				<h3 class="text-base md:text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1 md:mb-2">
+					暂无工具
+				</h3>
+				<p class="text-sm md:text-base text-neutral-600 dark:text-neutral-400">
+					还没有添加工具，请在配置文件中添加
+				</p>
+			</div>
+		</div>
+	</div>
+</MainGridLayout>
+
+<style is:global>
+	@reference "../../styles/main.css";
+
+	.tools-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.75rem;
+	}
+
+	@media (max-width: 640px) {
+		.tools-grid {
+			grid-template-columns: 1fr;
+			gap: 0.5rem;
+		}
+	}
+
+	/* 入场动画 - 仅首次加载 */
+	.tool-card {
+		animation: fade-in-up 0.4s ease-out backwards;
+	}
+
+	@keyframes fade-in-up {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	/* 悬停时的微妙浮动效果 */
+	.tool-card:hover {
+		transform: translateY(-2px);
+	}
+
+	/* 标签筛选动画 */
+	@keyframes fade-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	.animate-fade-in {
+		animation: fade-in 0.3s ease-out;
+	}
+</style>

@@ -1,0 +1,521 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { getCollection } from "astro:content";
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+import MainGridLayout from "@layouts/MainGridLayout.astro";
+import type { GetStaticPaths } from "astro";
+import { Icon } from "astro-icon/components";
+import PostCard from "@/components/layout/PostCard.astro";
+import { siteConfig } from "@/config";
+import { getCategoryList } from "@/utils/content-utils";
+import {
+	getCategoryPageUrl,
+	getPostUrlBySlug,
+	getTagUrl,
+} from "@/utils/url-utils";
+
+type PostEntry = CollectionEntry<"posts">;
+
+interface Props {
+	categoryName: string;
+	posts: PostEntry[];
+	totalPosts: number;
+	tags: { name: string; count: number }[];
+}
+
+export const getStaticPaths = (async () => {
+	const categories = await getCategoryList();
+	const allPosts = (await getCollection("posts", ({ data }) => {
+		return import.meta.env.PROD ? data.draft !== true : true;
+	})) as PostEntry[];
+
+	const paths: any[] = [];
+
+	for (const category of categories) {
+		const categoryPosts = allPosts.filter((post) => {
+			const postCategory = post.data.category?.trim() || "";
+			const uncategorized = i18n(I18nKey.uncategorized).toLowerCase();
+
+			if (!category.name || category.name.toLowerCase() === uncategorized) {
+				return !postCategory || postCategory.toLowerCase() === uncategorized;
+			}
+			return postCategory === category.name;
+		});
+
+		categoryPosts.sort((a, b) => {
+			if (a.data.pinned && !b.data.pinned) return -1;
+			if (!a.data.pinned && b.data.pinned) return 1;
+			return (
+				new Date(b.data.published).getTime() -
+				new Date(a.data.published).getTime()
+			);
+		});
+
+		const tagCountMap: Record<string, number> = {};
+		categoryPosts.forEach((post) => {
+			(post.data.tags || []).forEach((tag: string) => {
+				tagCountMap[tag] = (tagCountMap[tag] || 0) + 1;
+			});
+		});
+		const tags = Object.entries(tagCountMap)
+			.sort((a, b) => b[1] - a[1])
+			.map(([name, count]) => ({ name, count }));
+
+		paths.push({
+			params: { category: category.name },
+			props: {
+				categoryName: category.name,
+				posts: categoryPosts,
+				totalPosts: categoryPosts.length,
+				tags,
+			},
+		});
+	}
+
+	return paths;
+}) satisfies GetStaticPaths;
+
+const { categoryName, posts, totalPosts, tags } = Astro.props;
+
+// 解码分类名称
+const decodedCategory = decodeURIComponent(categoryName);
+
+let delay = 0;
+const interval = 50;
+
+const masonryEnabled = siteConfig.postListLayout.grid.masonry;
+const columnWidth = siteConfig.postListLayout.grid.columnWidth || 280;
+
+const defaultLayout = siteConfig.postListLayout.defaultMode || "list";
+const mobileDefaultLayout =
+	siteConfig.postListLayout.mobileDefaultMode || defaultLayout;
+const initialLayoutClass =
+	defaultLayout === "grid"
+		? "post-grid-auto grid-mode"
+		: "flex flex-col gap-4 md:gap-4 list-mode";
+---
+
+<MainGridLayout title={`${decodedCategory} - ${i18n(I18nKey.categories)}`}>
+    <!-- 面包屑导航 -->
+    <div class="card-base px-6 py-4 mb-6">
+        <nav class="flex items-center gap-2 text-sm text-30">
+            <a href="/" class="hover:text-(--primary) transition-colors">
+                <Icon name="material-symbols:home" class="inline-block align-middle" />
+            </a>
+            <span class="opacity-50">/</span>
+            <a href={getCategoryPageUrl()} class="hover:text-(--primary) transition-colors">
+                {i18n(I18nKey.categories)}
+            </a>
+            <span class="opacity-50">/</span>
+            <span class="text-90 font-medium">{decodedCategory}</span>
+        </nav>
+    </div>
+
+    <!-- 分类标题 -->
+    <div class="card-base px-8 py-6 mb-6">
+        <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-full bg-(--primary)/10 flex items-center justify-center flex-shrink-0">
+                <Icon name="material-symbols:folder-open" class="text-3xl text-(--primary)" />
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-90">{decodedCategory}</h1>
+                <p class="text-sm text-30 mt-1">
+                    {totalPosts} {i18n(I18nKey.postsCount)}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标签筛选区域 -->
+    {
+        tags.length > 0 && (
+            <div class="card-base px-6 py-5 mb-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <Icon name="material-symbols:label" class="text-lg text-(--primary)" />
+                    <span class="text-sm font-medium text-90">{i18n(I18nKey.tags)}</span>
+                    <span class="text-xs text-30">({tags.length})</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    {tags.map((tag: { name: string; count: number }) => (
+                        <a
+                            href={getTagUrl(tag.name)}
+                            class="btn-regular px-3 py-1.5 text-sm rounded-md
+                                     transition-all duration-200
+                                     hover:scale-105 hover:bg-(--primary)/20
+                                     active:scale-95"
+                        >
+                            #{tag.name}
+                            <span class="ml-1 text-xs opacity-60">({tag.count})</span>
+                        </a>
+                    ))}
+                </div>
+            </div>
+        )
+    }
+
+    <!-- 文章列表 -->
+    <div
+        id="post-list-container"
+        class={`transition-all duration-500 ease-in-out mb-4 ${initialLayoutClass}`}
+        data-default-layout={defaultLayout}
+        data-mobile-default-layout={mobileDefaultLayout}
+        data-masonry-enabled={masonryEnabled}
+        data-column-width={columnWidth}
+        style={`--post-card-min-width: ${columnWidth}px;`}
+    >
+        {
+            posts.length > 0 ? (
+                posts.map((entry: PostEntry, index: number) => (
+                    <PostCard
+                        entry={entry}
+                        title={entry.data.title}
+                        tags={entry.data.tags}
+                        category={entry.data.category}
+                        published={entry.data.published}
+                        updated={entry.data.updated}
+                        url={getPostUrlBySlug(entry.id)}
+                        image={entry.data.image}
+                        description={entry.data.description}
+                        draft={entry.data.draft}
+                        pinned={entry.data.pinned}
+                        password={!!entry.data.password}
+                        loading={index < 2 ? "eager" : "lazy"}
+                        class:list="onload-animation post-card-item"
+                        style={`animation-delay: calc(var(--content-delay) + ${delay++ * interval}ms);`}
+                    />
+                ))
+            ) : (
+                <div class="card-base px-8 py-12 text-center w-full">
+                    <Icon name="material-symbols:article" class="text-5xl text-30 mx-auto mb-4" />
+                    <p class="text-30">{i18n(I18nKey.bangumiNoData)}</p>
+                </div>
+            )
+        }
+    </div>
+</MainGridLayout>
+
+<script is:inline define:vars={{ defaultLayout, mobileDefaultLayout, columnWidth }}>
+    (function() {
+        const savedLayout = localStorage.getItem('postListLayout');
+        const effectiveDefault = window.innerWidth < 780 ? mobileDefaultLayout : defaultLayout;
+        const effectiveLayout = window.innerWidth < 380 ? 'grid' : (savedLayout || effectiveDefault);
+
+        if (effectiveLayout !== defaultLayout) {
+            const container = document.getElementById('post-list-container');
+
+            if (container) {
+                container.style.transition = 'none';
+                container.classList.remove('list-mode', 'grid-mode', 'post-grid-auto', 'flex', 'flex-col', 'gap-4', 'md:gap-4');
+
+                if (effectiveLayout === 'grid') {
+                    container.classList.add('grid-mode', 'post-grid-auto');
+                } else {
+                    container.classList.add('list-mode', 'flex', 'flex-col', 'gap-4', 'md:gap-4');
+                }
+
+                container.offsetHeight;
+                container.style.transition = '';
+            }
+        }
+    })();
+</script>
+
+<script>
+    function initLayout() {
+        const postListContainer = document.getElementById("post-list-container");
+        if (!postListContainer) return;
+
+        const savedLayout = localStorage.getItem("postListLayout");
+        const defaultLayout =
+            postListContainer.getAttribute("data-default-layout") || "list";
+        const mobileDefaultLayout =
+            postListContainer.getAttribute("data-mobile-default-layout") || defaultLayout;
+
+        const effectiveDefault = window.innerWidth < 780 ? mobileDefaultLayout : defaultLayout;
+        let currentLayout = savedLayout || effectiveDefault;
+
+        if (window.innerWidth < 380) {
+            currentLayout = "grid";
+        }
+
+        updatePostListLayout(currentLayout);
+    }
+
+    function updatePostListLayout(layout: string) {
+        const postListContainer = document.getElementById("post-list-container");
+        if (!postListContainer) return;
+
+        const isCurrentGrid = postListContainer.classList.contains("grid-mode");
+        const isCurrentList = postListContainer.classList.contains("list-mode");
+        const currentLayout = isCurrentGrid ? "grid" : (isCurrentList ? "list" : null);
+
+        const masonryEnabled = postListContainer.getAttribute("data-masonry-enabled") === "true";
+
+        const applyClasses = () => {
+            postListContainer.classList.remove("list-mode", "grid-mode", "post-grid-auto");
+            if (layout === "grid") {
+                postListContainer.classList.add("grid-mode");
+                postListContainer.classList.remove("flex", "flex-col");
+                if (masonryEnabled) {
+                    postListContainer.classList.remove("post-grid-auto");
+                    applyMasonryLayout();
+                } else {
+                    postListContainer.classList.add("post-grid-auto");
+                    resetMasonryLayout();
+                }
+            } else {
+                postListContainer.classList.add("list-mode");
+                postListContainer.classList.add("flex", "flex-col", "gap-4", "md:gap-4");
+                postListContainer.classList.remove("post-grid-auto");
+                resetMasonryLayout();
+            }
+        };
+
+        if (!currentLayout) {
+            applyClasses();
+            return;
+        }
+
+        if (currentLayout === layout) {
+            if (layout === "grid" && masonryEnabled) {
+                applyMasonryLayout();
+            }
+            return;
+        }
+
+        postListContainer.classList.add("layout-switching");
+
+        setTimeout(() => {
+            applyClasses();
+
+            requestAnimationFrame(() => {
+                postListContainer.classList.remove("layout-switching");
+            });
+        }, 200);
+    }
+
+    function resetMasonryLayout() {
+        const container = document.getElementById("post-list-container");
+        if (!container) return;
+
+        container.style.height = "";
+        container.style.position = "";
+        container.style.display = "";
+
+        const items = container.querySelectorAll(".post-card-item");
+        items.forEach((item) => {
+            // @ts-ignore
+            item.style.position = "";
+            // @ts-ignore
+            item.style.top = "";
+            // @ts-ignore
+            item.style.left = "";
+            // @ts-ignore
+            item.style.width = "";
+        });
+    }
+
+    function applyMasonryLayout() {
+        const container = document.getElementById("post-list-container");
+        if (!container) return;
+
+        const masonryEnabled = container.getAttribute("data-masonry-enabled") === "true";
+        if (!masonryEnabled) return;
+
+        if (!container.classList.contains("grid-mode")) return;
+
+        const items = Array.from(container.querySelectorAll(".post-card-item"));
+        if (items.length === 0) return;
+
+        const gap = 16;
+        const columnWidth = parseInt(container.getAttribute("data-column-width") || "280");
+
+        container.style.position = "relative";
+        container.style.display = "block";
+
+        const containerWidth = container.offsetWidth;
+        const colCount = Math.max(1, Math.floor((containerWidth + gap) / (columnWidth + gap)));
+        const itemWidth = (containerWidth - (colCount - 1) * gap) / colCount;
+
+        const colHeights = new Array(colCount).fill(0);
+
+        items.forEach((item) => {
+            const colIndex = colHeights.indexOf(Math.min(...colHeights));
+            // @ts-ignore
+            item.style.position = "absolute";
+            // @ts-ignore
+            item.style.width = `${itemWidth}px`;
+            // @ts-ignore
+            item.style.setProperty('height', 'auto', 'important');
+
+            // @ts-ignore
+            const height = item.offsetHeight;
+            const top = colHeights[colIndex];
+            const left = colIndex * (itemWidth + gap);
+
+            // @ts-ignore
+            item.style.top = `${top}px`;
+            // @ts-ignore
+            item.style.left = `${left}px`;
+
+            colHeights[colIndex] += height + gap;
+        });
+
+        container.style.height = `${Math.max(...colHeights)}px`;
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        setTimeout(initLayout, 50);
+
+        const imgs = document.querySelectorAll('#post-list-container img');
+        imgs.forEach(img => {
+            // @ts-ignore
+            if(img.complete) return;
+            img.addEventListener('load', () => {
+                applyMasonryLayout();
+            });
+        });
+    });
+
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) {
+            setTimeout(initLayout, 100);
+        }
+    });
+
+    window.addEventListener("layoutChange", function (event) {
+        // @ts-ignore
+        const newLayout = event.detail.layout;
+        const postListContainer = document.getElementById("post-list-container");
+        if (!postListContainer) return;
+
+        updatePostListLayout(newLayout);
+    });
+
+    let resizeTimeout: any;
+    window.addEventListener("resize", function () {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function () {
+            initLayout();
+        }, 250);
+    });
+
+    document.addEventListener("astro:page-load", function () {
+        setTimeout(initLayout, 50);
+
+        const imgs = document.querySelectorAll('#post-list-container img');
+        imgs.forEach(img => {
+            // @ts-ignore
+            if(img.complete) return;
+            img.addEventListener('load', () => {
+                applyMasonryLayout();
+            });
+        });
+    });
+
+    document.addEventListener("astro:after-swap", function () {
+        setTimeout(initLayout, 50);
+    });
+
+    setTimeout(initLayout, 0);
+</script>
+
+<style is:global>
+    .post-grid-auto {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(var(--post-card-min-width, 320px), 1fr));
+        gap: 1rem;
+    }
+
+    @media (max-width: 767px) {
+        .list-mode .post-meta-root {
+            transform: scale(0.72) !important;
+            transform-origin: top left !important;
+            margin-bottom: 0.25rem !important;
+            width: 139% !important;
+        }
+        .list-mode :global(.post-meta) {
+            margin-bottom: 0.25rem !important;
+            gap: 0.25rem !important;
+        }
+    }
+</style>
+
+<style>
+    #post-list-container {
+        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #post-list-container > :global(*) {
+        transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #post-list-container {
+        transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    }
+
+    #post-list-container.layout-switching {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    #post-list-container.grid-mode :global(.post-card-wrapper) {
+        flex-direction: column-reverse !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-card-image) {
+        width: 100% !important;
+        position: relative !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        border-radius: var(--radius-large) var(--radius-large) 0 0 !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-card-content) {
+        width: 100% !important;
+        padding: 1rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.no-cover .post-card-content) {
+        padding-right: 4.5rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-card-title) {
+        font-size: 1.35rem !important;
+        line-height: 1.75rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-card-title::before) {
+        display: none !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-meta) {
+        margin-bottom: 0.5rem !important;
+        gap: 0.5rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-meta .text-xl) {
+        font-size: 1rem !important;
+        line-height: 1.25rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.meta-icon) {
+        width: 1.5rem !important;
+        height: 1.5rem !important;
+        margin-right: 0.25rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-meta .text-sm) {
+        font-size: 0.75rem !important;
+        line-height: 1rem !important;
+    }
+
+    #post-list-container.grid-mode :global(.post-meta .pinned-btn) {
+        padding: 0.25rem 0.375rem !important;
+    }
+</style>
