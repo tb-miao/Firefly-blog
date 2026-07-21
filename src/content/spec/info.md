@@ -38,7 +38,7 @@
             const fullElement = document.getElementById('github-commit-full'); // 查找 id
 
             // 第一步：调用 API                
-            const githubResponse = await fetch(`https://api.github.com/repos/tb-miao/blog/commits?per_page=1`);
+            const githubResponse = await fetch(`https://api.github.com/repos/tb-miao/Firefly-blog/commits?per_page=1`);
 
             if (!githubResponse.ok) {
                 throw new Error('获取信息失败');
