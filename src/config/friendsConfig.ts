@@ -476,6 +476,15 @@ export const friendsConfig: FriendLink[] = [
 		weight: 0,
 		enabled: true,
 	},
+	{
+		title: 'JerryLife',
+		imgurl: 'https://img.jerry-nis.top/d8703c5c-4c4a-49cc-bd94-3363c9eda2d8.png',
+		desc: 'Enjoy life',
+		siteurl: 'https://jerry-nis.top',
+		tags: ['Blog'],
+		weight: 0,
+		enabled: true,
+	}
 ];
 
 // 获取启用的友链并进行排序
